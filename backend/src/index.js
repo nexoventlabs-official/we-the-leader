@@ -148,6 +148,11 @@ if (require('fs').existsSync(staticDir)) {
   app.use('/static', express.static(staticDir, { maxAge: '7d' }));
 }
 
+// ── Health check endpoint (required by Render) ──────────────────
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // ── API Routes ────────────────────────────────────────────────────
 app.use('/api',   chatRoutes);
 app.use('/admin', adminRoutes);

@@ -108,7 +108,10 @@ router.post(
     const privatePem = (config.whatsapp.flowPrivateKey || '')
       .replace(/\\\\n/g, '\n').replace(/\\n/g, '\n').trim();
 
-    if (!privatePem) return handleUnencrypted(req, res);
+    if (!privatePem) {
+      console.error('[Flow] ⚠️  WHATSAPP_FLOW_PRIVATE_KEY not set in env');
+      return handleUnencrypted(req, res);
+    }
 
     // If body lacks encryption fields → unencrypted ping (Meta publish health check)
     const body = req.body || {};
@@ -121,7 +124,7 @@ router.post(
     try {
       ({ decryptedBody, aesKeyBuffer, initialVectorBuffer } = decryptRequest(body, privatePem));
     } catch (err) {
-      console.error('[Flow] Decrypt error:', err.message);
+      console.error('[Flow] Decrypt error:', err.message, err.stack);
       // 421 → Meta will refresh cached public key
       // For any other error return 200 with active so Meta doesn't mark endpoint down
       if (err.statusCode === 421) return res.status(421).send();
@@ -183,8 +186,6 @@ async function buildResponse(body) {
   return { data: { status: 'active' } };
 }
 
-// ── Registration: Step 1 — validate EPIC ─────────────────────────
-
 async function handleEpicEntry(body) {
   const epic_no = ((body.data?.epic_no) || '').trim().toUpperCase();
   const { valid, value: epicNo } = validateEpic(epic_no);
@@ -211,12 +212,17 @@ async function handleEpicEntry(body) {
         },
       };
     }
-  } catch (e) { /* non-fatal */ }
+  } catch (e) { 
+    console.warn('[Flow] Check existing EPIC error (non-fatal):', e.message);
+  }
 
   // Lookup voter from DB1 with timeout handling
   try {
+    console.log(`[Flow] Looking up EPIC: ${epicNo}`);
     const voter = await findVoterByEpic(epicNo);
+    
     if (!voter) {
+      console.log(`[Flow] EPIC not found in DB1: ${epicNo}`);
       return {
         screen: 'EPIC_ENTRY',
         data: { error_message: 'EPIC not found. Please check your Voter ID card and try again.', show_error: true },
@@ -229,14 +235,16 @@ async function handleEpicEntry(body) {
     const assemblyName = voter.ASSEMBLY_NAME || voter.AC_NAME || '';
     const district     = voter.DISTRICT || voter.DISTRICT_NAME || '';
 
+    console.log(`[Flow] EPIC found: ${epicNo} → ${voterName}`);
+    
     return {
       screen: 'CONFIRM_DETAILS',
       data: { epic_no: epicNo, voter_name: voterName, assembly_name: assemblyName, district },
     };
   } catch (err) {
-    console.error('[Flow] EPIC lookup error:', err.message);
+    console.error('[Flow] EPIC lookup error:', err.message, 'Stack:', err.stack);
     // Check if it's a timeout — provide a more helpful message
-    if (err.message?.includes('timeout') || err.message?.includes('ECONNREFUSED')) {
+    if (err.message?.includes('timeout') || err.message?.includes('ECONNREFUSED') || err.message?.includes('not connected')) {
       return {
         screen: 'EPIC_ENTRY',
         data: { 
