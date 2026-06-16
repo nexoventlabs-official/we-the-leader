@@ -20,8 +20,12 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await admin.login(username.trim(), password)
-      navigate('/admin/dashboard', { replace: true })
+      const data = await admin.login(username.trim(), password)
+      if (data && data.success === true) {
+        navigate('/admin/dashboard', { replace: true })
+      } else {
+        setError('Login failed. Please check your credentials.')
+      }
     } catch (err) {
       setError(err.message || 'Invalid credentials. Please try again.')
     } finally {

@@ -19,10 +19,16 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   useEffect(() => {
-    // Use dedicated session endpoint — not stats — to avoid false redirects
-    // on DB timeout or backend errors unrelated to authentication
     admin.getSession()
-      .then(() => setChecking(false))
+      .then((data) => {
+        // Verify the response is a real authenticated session, not a stale
+        // HTML page or unexpected response (e.g. when VITE_API_URL is not set)
+        if (data && data.success === true) {
+          setChecking(false)
+        } else {
+          navigate('/admin/login', { replace: true })
+        }
+      })
       .catch(() => navigate('/admin/login', { replace: true }))
   }, [navigate])
 
