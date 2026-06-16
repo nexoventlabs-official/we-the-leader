@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
 import { chat, publicApi } from '../api'
-import { CardPreviewIframe } from '../components/CardPreviewIframe'
+import { FlipCard3D } from '../components/FlipCard3D'
 import '../styles/chatbot.css'
 
 // ── Constants ──────────────────────────────────────────────
@@ -192,52 +192,40 @@ function VoterCardMsg({ voter, isLatest, chatState, onConfirm, onRetry, disabled
   )
 }
 
-function GeneratedCardMsg({ card }) {
+function GeneratedCardMsg({ card, isNew = false }) {
   const c = card || {}
-  const previewRef = useRef(null)
   const [fullCardData, setFullCardData] = useState(null)
 
   useEffect(() => {
-    if (c.name && c.assembly_name && c.part_no) {
+    if (c.name && c.assembly_name) {
       setFullCardData(c)
     } else if (c.epic_no) {
       publicApi.getCardData(c.epic_no)
-        .then((data) => {
-          setFullCardData(data)
-        })
-        .catch((err) => {
-          console.error('Failed to fetch card details for preview:', err)
-          setFullCardData(c)
-        })
+        .then((data) => setFullCardData(data))
+        .catch(() => setFullCardData(c))
     }
   }, [c])
 
-  const handleDownload = (e) => {
-    e.preventDefault()
-    if (previewRef.current) {
-      previewRef.current.download()
-    }
-  }
-
   return (
-    <div className="generated-card-wrap">
-      <div className="card-preview-container" style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-        {fullCardData ? (
-          <CardPreviewIframe ref={previewRef} cardData={fullCardData} width={340} />
-        ) : (
-          <div style={{ background: '#1f2c34', width: 340, height: 215, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8696a0', fontSize: 12, borderRadius: 12, border: '1px solid var(--color-graphite)' }}>
-            Loading preview...
-          </div>
-        )}
-      </div>
-      <div className="card-actions">
-        <a href={`/card/${c.epic_no}`} target="_blank" rel="noreferrer" className="btn-card-action">
-          <i className="bi bi-eye" /> Full View
-        </a>
-        <button onClick={handleDownload} className="btn-card-action btn-download">
-          <i className="bi bi-download" /> Download
-        </button>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+      {fullCardData ? (
+        <FlipCard3D
+          cardData={fullCardData}
+          backUrl={c.back_url || fullCardData.back_url}
+          width={300}
+          autoFlip={isNew}
+          showActions={true}
+        />
+      ) : (
+        <div style={{
+          background: '#1f2c34', width: 300, height: 190,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#8696a0', fontSize: 12, borderRadius: 12,
+          border: '1px solid var(--color-graphite)'
+        }}>
+          Loading preview…
+        </div>
+      )}
     </div>
   )
 }
@@ -420,7 +408,7 @@ export default function ChatbotPage() {
       saveCache(card, profileRef.current || {})
 
       await botSay('🎉 Your card is ready!', 200)
-      addMsg('bot', 'generated_card', { card })
+      addMsg('bot', 'generated_card', { card, isNew: true })
       setChatState(S.DONE)
     } catch (err) {
       setChatState(S.AWAIT_PHOTO)
@@ -616,7 +604,7 @@ export default function ChatbotPage() {
         )
       }
       case 'generated_card':
-        return <GeneratedCardMsg card={msg.card} />
+        return <GeneratedCardMsg card={msg.card} isNew={msg.isNew || false} />
       case 'profile_card':
         return (
           <div className="profile-card">
