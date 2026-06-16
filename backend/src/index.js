@@ -108,8 +108,8 @@ app.use(session({
   }),
   cookie: {
     httpOnly: true,
-    sameSite: 'lax',
-    secure:   config.nodeEnv === 'production',
+    sameSite: 'none',   // required for cross-origin requests (Vercel → Render)
+    secure:   true,     // sameSite=none requires secure=true
     maxAge:   86400 * 1000,
   },
   name: 'wtl.session',
