@@ -95,8 +95,13 @@ router.post(
     verify: (req, _res, buf, enc) => { req.rawBody = buf?.toString(enc || 'utf-8'); },
   }),
   async (req, res) => {
-    if (!isSignatureValid(req.rawBody || '', req.headers['x-hub-signature-256'])) {
-      console.warn('[Flow] Signature invalid');
+    // Signature check is optional for flow endpoint — encryption is the
+    // primary security mechanism. Meta's publish health check does NOT
+    // send x-hub-signature-256, only runtime data_exchange calls do.
+    // If sig header is present, validate it; if absent, allow through.
+    const sigHeader = req.headers['x-hub-signature-256'];
+    if (sigHeader && !isSignatureValid(req.rawBody || '', sigHeader)) {
+      console.warn('[Flow] Invalid request signature — rejected');
       return res.status(432).send();
     }
 
