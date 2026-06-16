@@ -2,10 +2,10 @@
   "version": "6.2",
   "data_api_version": "3.0",
   "routing_model": {
-    "WELCOME": ["EPIC_ENTRY"],
-    "EPIC_ENTRY": ["CONFIRM_DETAILS"],
+    "WELCOME":         ["EPIC_ENTRY"],
+    "EPIC_ENTRY":      ["CONFIRM_DETAILS"],
     "CONFIRM_DETAILS": ["SUCCESS"],
-    "SUCCESS": []
+    "SUCCESS":         []
   },
   "screens": [
     {
@@ -26,7 +26,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Generate your free Digital Member ID Card. Enter your mobile number to get started."
+            "text": "Generate your free Digital Member ID Card.\nEnter your mobile number to get started."
           },
           {
             "type": "TextInput",
@@ -34,7 +34,7 @@
             "input-type": "phone",
             "required": true,
             "name": "mobile",
-            "helper-text": "Enter your 10-digit mobile number"
+            "helper-text": "10-digit mobile number"
           },
           {
             "type": "Footer",
@@ -61,6 +61,10 @@
         "mobile": {
           "type": "string",
           "__example__": "9876543210"
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
         }
       },
       "layout": {
@@ -72,7 +76,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Your EPIC Number is printed on your Voter ID card.\nFormat: 3 letters + 7 digits\nExample: ABC1234567"
+            "text": "Your EPIC Number is printed on your Voter ID card.\nFormat: 3 letters + 7 digits\nExample: TNA1234567"
           },
           {
             "type": "TextInput",
@@ -80,7 +84,12 @@
             "input-type": "text",
             "required": true,
             "name": "epic_no",
-            "helper-text": "e.g. ABC1234567"
+            "helper-text": "e.g. TNA1234567"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.error_message}",
+            "visible": "${data.error_message != \"\"}"
           },
           {
             "type": "Footer",
@@ -88,9 +97,9 @@
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
+                "screen": "EPIC_ENTRY",
                 "mobile": "${data.mobile}",
-                "epic_no": "${form.epic_no}",
-                "action": "validate_epic"
+                "epic_no": "${form.epic_no}"
               }
             }
           }
@@ -108,7 +117,7 @@
         },
         "epic_no": {
           "type": "string",
-          "__example__": "ABC1234567"
+          "__example__": "TNA1234567"
         },
         "voter_name": {
           "type": "string",
@@ -140,7 +149,7 @@
           },
           {
             "type": "Footer",
-            "label": "Confirm & Proceed",
+            "label": "Confirm & Generate Card",
             "on-click-action": {
               "name": "navigate",
               "next": {
@@ -148,8 +157,8 @@
                 "name": "SUCCESS"
               },
               "payload": {
-                "mobile": "${data.mobile}",
-                "epic_no": "${data.epic_no}",
+                "mobile":     "${data.mobile}",
+                "epic_no":    "${data.epic_no}",
                 "voter_name": "${data.voter_name}"
               }
             }
@@ -159,7 +168,7 @@
     },
     {
       "id": "SUCCESS",
-      "title": "Registration Started",
+      "title": "Registration Complete",
       "terminal": true,
       "success": true,
       "data": {
@@ -169,7 +178,7 @@
         },
         "epic_no": {
           "type": "string",
-          "__example__": "ABC1234567"
+          "__example__": "TNA1234567"
         },
         "voter_name": {
           "type": "string",
@@ -189,12 +198,12 @@
           },
           {
             "type": "Footer",
-            "label": "Done",
+            "label": "Open Website",
             "on-click-action": {
               "name": "complete",
               "payload": {
-                "mobile": "${data.mobile}",
-                "epic_no": "${data.epic_no}",
+                "mobile":     "${data.mobile}",
+                "epic_no":    "${data.epic_no}",
                 "voter_name": "${data.voter_name}"
               }
             }

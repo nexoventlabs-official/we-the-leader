@@ -3,15 +3,20 @@
   "data_api_version": "3.0",
   "routing_model": {
     "MOBILE_INPUT": ["OTP_VERIFY"],
-    "OTP_VERIFY": ["SUCCESS"],
-    "SUCCESS": []
+    "OTP_VERIFY":   ["SUCCESS"],
+    "SUCCESS":      []
   },
   "screens": [
     {
       "id": "MOBILE_INPUT",
       "title": "Member Login",
       "terminal": false,
-      "data": {},
+      "data": {
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
@@ -29,7 +34,12 @@
             "input-type": "phone",
             "required": true,
             "name": "mobile",
-            "helper-text": "Enter your 10-digit registered mobile number"
+            "helper-text": "10-digit registered mobile number"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.error_message}",
+            "visible": "${data.error_message != \"\"}"
           },
           {
             "type": "Footer",
@@ -37,8 +47,8 @@
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
-                "mobile": "${form.mobile}",
-                "action": "send_otp"
+                "screen": "MOBILE_INPUT",
+                "mobile": "${form.mobile}"
               }
             }
           }
@@ -53,6 +63,10 @@
         "mobile": {
           "type": "string",
           "__example__": "9876543210"
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
         }
       },
       "layout": {
@@ -64,7 +78,7 @@
           },
           {
             "type": "TextBody",
-            "text": "An OTP has been sent to your mobile number. Enter it below to verify."
+            "text": "A 6-digit OTP has been sent to your mobile number. Enter it below."
           },
           {
             "type": "TextInput",
@@ -75,14 +89,19 @@
             "helper-text": "Enter the OTP sent to your mobile"
           },
           {
+            "type": "TextBody",
+            "text": "${data.error_message}",
+            "visible": "${data.error_message != \"\"}"
+          },
+          {
             "type": "Footer",
             "label": "Verify OTP",
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
+                "screen": "OTP_VERIFY",
                 "mobile": "${data.mobile}",
-                "otp": "${form.otp}",
-                "action": "verify_otp"
+                "otp":    "${form.otp}"
               }
             }
           }
@@ -101,7 +120,7 @@
         },
         "epic_no": {
           "type": "string",
-          "__example__": "ABC1234567"
+          "__example__": "TNA1234567"
         }
       },
       "layout": {
@@ -121,7 +140,7 @@
             "on-click-action": {
               "name": "complete",
               "payload": {
-                "mobile": "${data.mobile}",
+                "mobile":  "${data.mobile}",
                 "epic_no": "${data.epic_no}"
               }
             }
