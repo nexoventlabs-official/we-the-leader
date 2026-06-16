@@ -147,12 +147,13 @@ router.post(
     // Ensure response is always valid JSON
     try {
       const encryptedResp = encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer);
+      console.log(`[Flow] Encrypted response size: ${encryptedResp.length} bytes`);
       return res
         .set('Content-Type', 'application/json')
         .status(200)
         .json({ encrypted_response: encryptedResp });
     } catch (err) {
-      console.error('[Flow] Encryption error:', err.message);
+      console.error('[Flow] Encryption error:', err.message, 'Response was:', JSON.stringify(screenResponse).slice(0, 200));
       // Last-ditch fallback: return active status
       return res.status(200).json({ data: { status: 'active' } });
     }
@@ -238,18 +239,22 @@ async function handleEpicEntry(body) {
       };
     }
 
-    const voterName    = voter.VOTER_NAME
+    const voterName    = (voter.VOTER_NAME
       || `${voter.FM_NAME_EN || ''} ${voter.LASTNAME_EN || ''}`.trim()
-      || 'Unknown';
-    const assemblyName = voter.ASSEMBLY_NAME || voter.AC_NAME || '';
-    const district     = voter.DISTRICT || voter.DISTRICT_NAME || '';
+      || 'Unknown').trim().slice(0, 100); // Limit to 100 chars, trim whitespace
+    const assemblyName = (voter.ASSEMBLY_NAME || voter.AC_NAME || '').trim().slice(0, 100);
+    const district     = (voter.DISTRICT || voter.DISTRICT_NAME || '').trim().slice(0, 100);
 
     console.log(`[Flow] EPIC found: ${epicNo} → ${voterName}`);
     
-    return {
+    const responsePayload = {
       screen: 'CONFIRM_DETAILS',
       data: { epic_no: epicNo, voter_name: voterName, assembly_name: assemblyName, district },
     };
+    
+    console.log(`[Flow] Returning CONFIRM_DETAILS:`, JSON.stringify(responsePayload).slice(0, 200));
+    
+    return responsePayload;
   } catch (err) {
     console.error('[Flow] EPIC lookup error:', err.message, 'Stack:', err.stack);
     // Check if it's a timeout — provide a more helpful message
