@@ -122,7 +122,9 @@ router.post(
       screenResponse = { data: { status: 'active' } }; // safe fallback for ping
     }
 
-    return res.send(encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer));
+    return res
+      .set('Content-Type', 'application/json')
+      .send(encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer));
   },
 );
 
