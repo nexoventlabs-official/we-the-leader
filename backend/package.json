@@ -10,7 +10,8 @@
     "flow:publish": "node scripts/publish-flows.js",
     "flow:upload-key": "node scripts/upload-public-key.js",
     "flow:subscribe": "node scripts/subscribe-waba.js",
-    "flow:recreate": "node scripts/recreate-flows.js"
+    "flow:recreate": "node scripts/recreate-flows.js",
+    "send:card": "node scripts/send-card-to-whatsapp.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.0",
