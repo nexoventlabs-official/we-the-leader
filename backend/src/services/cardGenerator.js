@@ -153,7 +153,9 @@ async function generateCard(voter, photoBuffer = null) {
 
   // ── Text fields (all bold black) ───────────────────────────────
   const epicNo   = clean(voter.epic_no   || voter.EPIC_NO        || '').toUpperCase();
-  const name     = toTitle(clean(voter.name || voter.VOTER_NAME  || voter.voter_name || ''));
+  const rawName  = clean(voter.name || voter.VOTER_NAME  || voter.voter_name || '');
+  // Replace hyphens with space so hyphenated names render cleanly on the card
+  const name     = toTitle(rawName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim());
   const assembly = toTitle(clean(voter.assembly_name || voter.ASSEMBLY_NAME || ''));
   const district = toTitle(clean(voter.district || voter.DISTRICT || voter.DISTRICT_NAME || ''));
   const gender   = clean(voter.gender    || voter.GENDER         || '');

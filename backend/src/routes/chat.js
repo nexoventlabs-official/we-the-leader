@@ -99,7 +99,7 @@ function normaliseVoter(doc) {
 function nowUTC() { return new Date(); }
 
 function generatePtcCode() {
-  return 'PTC-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+  return 'WTL-' + crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
 function genOtp() {
