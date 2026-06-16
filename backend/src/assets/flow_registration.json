@@ -98,7 +98,35 @@
           },
           {
             "type": "TextBody",
-            "text": "👤 Name     : ${data.voter_name}\n🏛️ Assembly : ${data.assembly_name}\n📍 District : ${data.district}\n🗳️ EPIC No  : ${data.epic_no}"
+            "text": "👤 Name"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.voter_name}"
+          },
+          {
+            "type": "TextBody",
+            "text": "🏛️ Assembly"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.assembly_name}"
+          },
+          {
+            "type": "TextBody",
+            "text": "📍 District"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.district}"
+          },
+          {
+            "type": "TextBody",
+            "text": "🗳️ EPIC No"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.epic_no}"
           },
           {
             "type": "Footer",
