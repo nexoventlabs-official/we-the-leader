@@ -97,6 +97,15 @@ export const FlipCard3D = forwardRef(function FlipCard3D(
     } catch (e) { console.error('FlipCard3D iframe error:', e) }
   }
 
+  // Trigger the iframe's html2canvas-based downloadPNG
+  const handleDownload = (e) => {
+    e.preventDefault()
+    const iframe = iframeRef.current
+    if (iframe?.contentWindow?.downloadPNG) {
+      iframe.contentWindow.downloadPNG()
+    }
+  }
+
   const cardStyle = { width: `${width}px`, height: `${height}px` }
 
   return (
@@ -155,15 +164,12 @@ export const FlipCard3D = forwardRef(function FlipCard3D(
 
       {showActions && (
         <div className="flip-card-actions">
-          <a
-            href={cardData?.combined_url || cardData?.card_url || '#'}
-            download={`WTL_Card_${cardData?.epic_no || 'member'}.jpg`}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            onClick={handleDownload}
             className="flip-action-btn flip-action-download"
           >
             <i className="bi bi-download" /> Download
-          </a>
+          </button>
           <a
             href={`/card/${cardData?.epic_no}`}
             target="_blank"
