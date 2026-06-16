@@ -1,0 +1,27 @@
+const { mongoose } = require('../db');
+const generatedVoterSchema = new mongoose.Schema({
+  EPIC_NO:       { type: String, required: true, unique: true, index: true },
+  MOBILE_NO:     { type: String, index: true },
+  ptc_code:      { type: String, unique: true, sparse: true, index: true },
+  photo_url:     { type: String },
+  card_url:      { type: String },
+  back_url:      { type: String },
+  combined_url:  { type: String },
+  secret_pin:    { type: String },
+  referral_id:   { type: String },
+  referral_link: { type: String },
+  referred_by_ptc:             { type: String, index: true },
+  referred_by_referral_id:     { type: String },
+  referred_members_count:      { type: Number, default: 0 },
+  source:        { type: String },
+  volunteer_status:   { type: String },
+  booth_agent_status: { type: String },
+  FM_NAME_EN:    { type: String },
+  LASTNAME_EN:   { type: String },
+  ASSEMBLY_NAME: { type: String },
+  DISTRICT_NAME: { type: String },
+  AC_NO:         { type: String },
+  generated_at:  { type: Date },
+  created_at:    { type: Date },
+}, { strict: false, collection: 'generated_voters' });
+module.exports = mongoose.model('GeneratedVoter', generatedVoterSchema);

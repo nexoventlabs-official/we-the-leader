@@ -1,0 +1,17 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://idgenerator-vlgi.onrender.com/api/:path*"
+    },
+    {
+      "source": "/admin/api/:path*",
+      "destination": "https://idgenerator-vlgi.onrender.com/admin/api/:path*"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}

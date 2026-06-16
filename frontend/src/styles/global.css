@@ -1,0 +1,152 @@
+:root {
+  /* Sandclock Core Palette */
+  --color-abyss: #0a0a0a;
+  --color-carbon: #171717;
+  --color-graphite: #222222;
+  --color-ash: #9b9b9b;
+  --color-chalk: #ffffff;
+  --color-signal-mint: #3fe280;
+
+  /* Fonts */
+  --font-display: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* Typography Scales */
+  --text-caption: 14px;
+  --leading-caption: 1.43;
+  --tracking-caption: 0.05em;
+  --text-body: 16px;
+  --leading-body: 1.5;
+  --tracking-body: 0.05em;
+  --text-subheading: 20px;
+  --leading-subheading: 1.4;
+  --tracking-subheading: 0.05em;
+  --text-heading-sm: 24px;
+  --leading-heading-sm: 1.33;
+  --tracking-heading-sm: 0.05em;
+  --text-heading: 36px;
+  --leading-heading: 1.11;
+  --tracking-heading: 0.05em;
+  --text-display: 72px;
+  --leading-display: 1;
+  --tracking-display: -0.025em;
+
+  /* Global Mapping & Fallbacks */
+  --color-coral-pulse: var(--color-signal-mint);
+  --color-canopy-green: var(--color-signal-mint);
+  --color-indigo-bloom: var(--color-signal-mint);
+  --color-paper-white: var(--color-chalk);
+  --color-slate: var(--color-ash);
+  --color-leaf-bright: var(--color-signal-mint);
+  
+  --bg-root: var(--color-abyss);
+  --bg-surface: var(--color-carbon);
+  --bg-surface-2: var(--color-graphite);
+  
+  --text-primary: var(--color-chalk);
+  --text-secondary: var(--color-ash);
+  --border-dim: var(--color-graphite);
+  --shadow-card: none;
+
+  /* Spacing Tokens */
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+  --spacing-48: 48px;
+
+  /* Radius Tokens */
+  --radius-buttons: 8px;
+  --radius-cards: 12px;
+  --radius-herobutton: 24px;
+
+  /* Layout Tokens */
+  --page-max-width: 1200px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-inter);
+  background: var(--bg-root);
+  color: var(--text-primary);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.05em;
+}
+
+a {
+  color: var(--color-signal-mint);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+a:hover {
+  opacity: 0.8;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+button {
+  font-family: inherit;
+  letter-spacing: 0.05em;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-graphite);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ash);
+}
+
+/* Utility */
+.text-coral { color: var(--color-signal-mint) !important; }
+.text-green  { color: var(--color-signal-mint) !important; }
+.bg-surface  { background: var(--bg-surface) !important; }
+.border-dim  { border-color: var(--border-dim) !important; }
+
+/* Full-screen spinner */
+.page-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-root);
+}

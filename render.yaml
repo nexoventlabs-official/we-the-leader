@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: wtl-backend
+    env: node
+    region: singapore
+    plan: starter
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node src/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # ── Secrets — set these as Render Secret environment variables ──
+      # Never commit actual values. Set via Render dashboard → Environment.
+      - key: MONGO_URI
+        sync: false          # Mark as secret — set in dashboard
+      - key: MONGO_DB
+        value: wetheleaders
+      - key: MONGO_VOTER_URL
+        sync: false
+      - key: MONGO_VOTER_DB_NAME
+        value: voter_db
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_PHOTO_FOLDER
+        value: member_photos
+      - key: CLOUDINARY_CARDS_FOLDER
+        value: generated_cards
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true  # Render generates a strong random value
+      - key: SMS_API_KEY
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: BASE_URL
+        sync: false          # Set to your production domain e.g. https://app.wetheleaders.in

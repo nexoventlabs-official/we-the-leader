@@ -1,0 +1,31 @@
+# Environment & secrets
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Data & uploads (local only)
+data/
+uploads/
+member_photos/
+output/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+.kiro/
+
+# Generated card previews / temp output
+dummy_card_output.jpeg
+dummy_card_output.png
+
+# OS
+Thumbs.db
+.DS_Store
