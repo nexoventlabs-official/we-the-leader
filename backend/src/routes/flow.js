@@ -127,8 +127,8 @@ router.post(
       if (err.statusCode === 421) return res.status(421).send();
       return res
         .set('Content-Type', 'application/json')
-        .send(encryptResponse({ data: { status: 'active' } }, 
-          crypto.randomBytes(16), crypto.randomBytes(16)));
+        .json({ encrypted_response: encryptResponse({ data: { status: 'active' } }, 
+          crypto.randomBytes(16), crypto.randomBytes(16)) });
     }
 
     console.log('[Flow] Body:', JSON.stringify(decryptedBody).slice(0, 150));
@@ -143,7 +143,7 @@ router.post(
 
     return res
       .set('Content-Type', 'application/json')
-      .send(encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer));
+      .json({ encrypted_response: encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer) });
   },
 );
 

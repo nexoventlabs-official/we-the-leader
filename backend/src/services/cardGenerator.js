@@ -1,49 +1,43 @@
 /**
  * Card Generation Engine — We The Leaders
  * ==========================================
- * Front card : front1.png  (1581 × 995 px) — overlay photo + text
+ * Front card : wtl_final_11.html (1576 × 998 px) — rendered website card template
  * Back card  : black_original1.png (1152 × 768 px) — used as-is (no QR, no T&C)
  * Combined   : front + back side-by-side
  *
- * Uses @napi-rs/canvas (Node v24 compatible, no native gyp build needed).
+ * Uses Puppeteer to render the live HTML card template and screenshot it.
  */
 
 const path   = require('path');
 const fs     = require('fs');
-const config = require('../config');
+const { pathToFileURL } = require('url');
+const puppeteer = require('puppeteer');
+const sharp = require('sharp');
 
 // ── Asset paths ─────────────────────────────────────────────────
 const ASSETS_DIR = path.join(__dirname, '..', 'assets');
+const FRONT_TEMPLATE_PATH = path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'wtl_final_11.html');
 
 function assetPath(name) {
   return path.join(ASSETS_DIR, name);
 }
 
-// ── Canvas (lazy-loaded) ─────────────────────────────────────────
-let _canvas          = null;
-let _fontsRegistered = false;
-
-function getCanvas() {
-  if (!_canvas) _canvas = require('@napi-rs/canvas');
-  return _canvas;
+// ── Browser helper ────────────────────────────────────────────────
+let _browser = null;
+async function getBrowser() {
+  if (_browser) return _browser;
+  _browser = await puppeteer.launch({
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  return _browser;
 }
 
-function ensureFonts() {
-  if (_fontsRegistered) return;
-  const { GlobalFonts } = getCanvas();
-  const fonts = [
-    { file: 'Montserrat-ExtraBold.ttf', family: 'Montserrat'     },
-    { file: 'Outfit-Bold.ttf',          family: 'Outfit'          },
-    { file: 'PlusJakartaSans-Bold.ttf', family: 'PlusJakartaSans' },
-  ];
-  for (const f of fonts) {
-    const p = assetPath(f.file);
-    if (fs.existsSync(p)) {
-      try { GlobalFonts.registerFromPath(p, f.family); }
-      catch (e) { console.warn(`Font skip (${f.file}):`, e.message); }
-    }
-  }
-  _fontsRegistered = true;
+function inferImageMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 8) return 'image/jpeg';
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return 'image/jpeg';
+  if (buffer.slice(0, 8).equals(Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]))) return 'image/png';
+  if (buffer.slice(0, 6).equals(Buffer.from([0x47,0x49,0x46,0x38,0x39,0x61])) || buffer.slice(0, 6).equals(Buffer.from([0x47,0x49,0x46,0x38,0x37,0x61]))) return 'image/gif';
+  return 'image/jpeg';
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -52,230 +46,146 @@ function clean(v, n = 120) {
 }
 
 function toTitle(s) {
-  return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-}
-
-/** Fit-and-center photo into destination rect, clipped to rounded rect */
-function drawFittedPhoto(ctx, img, dx, dy, dw, dh, radius = 0) {
-  const scale = Math.max(dw / img.width, dh / img.height);
-  const nw    = img.width  * scale;
-  const nh    = img.height * scale;
-  const sx    = dx - (nw - dw) / 2;
-  const sy    = dy - (nh - dh) * 0.20; // shift up 20% for face focus
-
-  ctx.save();
-  if (radius > 0) {
-    ctx.beginPath();
-    ctx.roundRect(dx, dy, dw, dh, radius);
-    ctx.clip();
-  }
-  ctx.drawImage(img, sx, sy, nw, nh);
-  ctx.restore();
-}
-
-/** Placeholder silhouette when no photo */
-function drawPlaceholder(ctx, dx, dy, dw, dh, radius = 0) {
-  ctx.save();
-  if (radius > 0) {
-    ctx.beginPath();
-    ctx.roundRect(dx, dy, dw, dh, radius);
-    ctx.clip();
-  }
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.fillRect(dx, dy, dw, dh);
-  // head
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  const cx = dx + dw / 2, cy = dy + dh * 0.37, cr = dw * 0.22;
-  ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
-  // body
-  ctx.beginPath();
-  ctx.moveTo(dx + dw * 0.10, dy + dh);
-  ctx.lineTo(dx + dw * 0.90, dy + dh);
-  ctx.lineTo(dx + dw * 0.78, dy + dh * 0.60);
-  ctx.lineTo(dx + dw * 0.22, dy + dh * 0.60);
-  ctx.closePath(); ctx.fill();
-  ctx.restore();
-}
-
-/** Shrink font size until text fits maxWidth */
-function fitFont(ctx, text, maxWidth, baseSize, family) {
-  let size = baseSize;
-  ctx.font = `bold ${size}px "${family}",Arial,sans-serif`;
-  while (size > 10 && ctx.measureText(text).width > maxWidth) {
-    size -= 1;
-    ctx.font = `bold ${size}px "${family}",Arial,sans-serif`;
-  }
-  return size;
+  return String(s || '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  FRONT CARD  —  front1.png (1581 × 995)
+//  FRONT CARD  —  wtl_final_11.html rendered as screenshot
 // ─────────────────────────────────────────────────────────────────
-/**
- * Layout (px on 1581×995):
- *
- *  Photo box   : bottom-left  x=55,  y=530, w=220, h=275, r=10
- *  Name        : x=300, y=128, bold black, size=52
- *  Field rows  : x=300, y=210  — label(dark-grey) + value(black)
- *  Row gap     : 62px
- */
 async function generateCard(voter, photoBuffer = null) {
-  ensureFonts();
-  const { createCanvas, loadImage } = getCanvas();
-
-  const W = 1581, H = 995;
-  const canvas = createCanvas(W, H);
-  const ctx    = canvas.getContext('2d');
-
-  // 1. Draw background template
-  const bgPath = assetPath('front.jpeg');
-  if (fs.existsSync(bgPath)) {
-    const bg = await loadImage(bgPath);
-    ctx.drawImage(bg, 0, 0, W, H);
-  } else {
-    ctx.fillStyle = '#f5f5f5';
-    ctx.fillRect(0, 0, W, H);
+  const templatePath = FRONT_TEMPLATE_PATH;
+  if (!fs.existsSync(templatePath)) {
+    throw new Error(`Front template not found: ${templatePath}`);
   }
 
-  // 2. Photo — passport ratio 75×95, moved down to align with placeholder
-  const PX = 148, PY = 330, PW = 240, PH = 304, PR = 8;
-  if (photoBuffer) {
-    try {
-      const photoImg = await loadImage(photoBuffer);
-      drawFittedPhoto(ctx, photoImg, PX, PY, PW, PH, PR);
-    } catch (e) {
-      console.warn('Photo load error:', e.message);
-      drawPlaceholder(ctx, PX, PY, PW, PH, PR);
-    }
-  } else {
-    drawPlaceholder(ctx, PX, PY, PW, PH, PR);
-  }
-
-  // ── Text fields (all bold black) ───────────────────────────────
-  const epicNo   = clean(voter.epic_no   || voter.EPIC_NO        || '').toUpperCase();
-  const rawName  = clean(voter.name || voter.VOTER_NAME  || voter.voter_name || '');
-  // Replace hyphens with space so hyphenated names render cleanly on the card
-  const name     = toTitle(rawName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim());
-  const assembly = toTitle(clean(voter.assembly_name || voter.ASSEMBLY_NAME || ''));
-  const district = toTitle(clean(voter.district || voter.DISTRICT || voter.DISTRICT_NAME || ''));
-  const gender   = clean(voter.gender    || voter.GENDER         || '');
-  const mobile   = clean(voter.mobile    || voter.MOBILE_NO      || '');
-  const ptcCode  = clean(voter.ptc_code  || '');
+  const epicNo   = clean(voter.epic_no || voter.EPIC_NO || '').toUpperCase();
+  const rawName  = clean(voter.name || voter.VOTER_NAME || voter.voter_name || '');
+  const name     = toTitle(rawName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim()) || '-';
+  const assembly = toTitle(clean(voter.assembly_name || voter.ASSEMBLY_NAME || '')) || '-';
+  const booth    = clean(voter.part_no || voter.PART_NO || voter.booth || voter.booth_no || '') || '-';
+  const district = toTitle(clean(voter.district || voter.DISTRICT || voter.DISTRICT_NAME || '')) || '-';
+  const ptcCode  = clean(voter.ptc_code || '');
   const memberId = ptcCode || `WTL-${epicNo.slice(-6)}`;
 
-  ctx.textBaseline = 'top';
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setViewport({ width: 1600, height: 1100, deviceScaleFactor: 1 });
 
-  // ── Name ────────────────────────────────────────────────────────
-  // Start well below the header block (header ends ~y=320 on 1581×995)
-  const TEXT_X = 420;   // shifted right, clear of photo
-  const MAX_W  = 840;   // safe width before leader image starts
+    const templateUrl = pathToFileURL(templatePath).href;
+    await page.goto(templateUrl, { waitUntil: 'networkidle2' });
 
-  fitFont(ctx, name, MAX_W, 50, 'Outfit');
-  ctx.fillStyle = '#111111';
-  ctx.fillText(name, TEXT_X, 405);
+    const photoDataUrl = photoBuffer
+      ? `data:${inferImageMimeType(photoBuffer)};base64,${photoBuffer.toString('base64')}`
+      : null;
 
-  // ── Rows ────────────────────────────────────────────────────────
-  const rows = [
-    { label: 'EPIC NO',   value: epicNo    },
-    { label: 'ASSEMBLY',  value: assembly  },
-    { label: 'DISTRICT',  value: district  },
-    { label: 'MEMBER ID', value: memberId  },
-  ];
-  if (gender) rows.push({ label: 'GENDER',  value: toTitle(gender) });
-  if (mobile) rows.push({ label: 'MOBILE',  value: mobile });
+    await page.evaluate(async ({ photoDataUrl, name, epicNo, assembly, booth, district, memberId }) => {
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
 
-  let rowY       = 475;
-  const ROW_GAP  = 72;
-  const LBL_SZ   = 21;
-  const VAL_SZ   = 38;
-  const LBL_COL  = 190;
-  const COLON_GAP = 16;
+      setText('v-name', name);
+      setText('v-epic', epicNo);
+      setText('v-asm', assembly);
+      setText('v-booth', booth);
+      setText('v-dist', district);
+      setText('v-mid', memberId);
+      setText('v-mid-big', memberId);
 
-  for (const row of rows) {
-    if (rowY > H - 110) break;
+      const photoImg = document.getElementById('member-photo-img');
+      const svg = document.querySelector('#photo-box svg');
+      const span = document.querySelector('#photo-box span');
 
-    // Label — dark grey, vertically centered with value
-    // Value is VAL_SZ=38, Label is LBL_SZ=21 → offset = (38-21)/2 = 8.5
-    const lblOffset = Math.round((VAL_SZ - LBL_SZ) / 2);
-    ctx.font      = `bold ${LBL_SZ}px "Outfit",Arial,sans-serif`;
-    ctx.fillStyle = '#555555';
-    ctx.fillText(row.label, TEXT_X, rowY + lblOffset);
+      if (photoImg) {
+        if (photoDataUrl) {
+          photoImg.src = photoDataUrl;
+          photoImg.style.display = 'block';
+          if (svg) svg.style.display = 'none';
+          if (span) span.style.display = 'none';
+          await new Promise((resolve) => {
+            if (photoImg.complete && photoImg.naturalWidth !== 0) return resolve();
+            photoImg.onload = () => resolve();
+            photoImg.onerror = () => resolve();
+          });
+        } else {
+          photoImg.style.display = 'none';
+          if (svg) svg.style.display = '';
+          if (span) span.style.display = '';
+        }
+      }
 
-    // Colon — same vertical center as label
-    ctx.fillText(':', TEXT_X + LBL_COL, rowY + lblOffset);
+      const wrap = document.querySelector('.card-wrap');
+      if (wrap) {
+        wrap.style.transform = 'none';
+        wrap.style.marginBottom = '0';
+      }
 
-    // Value — bold black, baseline at rowY
-    const valX = TEXT_X + LBL_COL + COLON_GAP;
-    fitFont(ctx, row.value, MAX_W - LBL_COL - COLON_GAP, VAL_SZ, 'PlusJakartaSans');
-    ctx.fillStyle = '#111111';
-    ctx.fillText(row.value, valX, rowY);
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+    }, { photoDataUrl, name, epicNo, assembly, booth, district, memberId });
 
-    rowY += ROW_GAP;
+    const cardHandle = await page.$('#card');
+    if (!cardHandle) {
+      throw new Error('Could not locate #card element in front template');
+    }
+
+    const screenshotBuffer = await cardHandle.screenshot({ type: 'png' });
+    return screenshotBuffer;
+  } finally {
+    await page.close();
   }
-
-  return canvas.toBuffer('image/jpeg', 95);
 }
 
 // ─────────────────────────────────────────────────────────────────
 //  BACK CARD  —  black_original1.png (1152 × 768) used as-is
 // ─────────────────────────────────────────────────────────────────
 async function generateBackCard(voter) {
-  const { createCanvas, loadImage } = getCanvas();
-
   const backPath = assetPath('black_original1.png');
 
   if (fs.existsSync(backPath)) {
-    // Load the image and return it directly as JPEG
-    const img    = await loadImage(backPath);
-    const W = img.width, H = img.height;
-    const canvas = createCanvas(W, H);
-    const ctx    = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, W, H);
-    return canvas.toBuffer('image/jpeg', 95);
+    return fs.promises.readFile(backPath);
   }
 
   // Fallback: plain dark card if image missing
-  const W = 1152, H = 768;
-  const canvas = createCanvas(W, H);
-  const ctx    = canvas.getContext('2d');
-  ctx.fillStyle = '#0a0a0a';
-  ctx.fillRect(0, 0, W, H);
-  ctx.font      = 'bold 48px Arial';
-  ctx.fillStyle = '#ffffff';
-  ctx.textBaseline = 'middle';
-  ctx.textAlign    = 'center';
-  ctx.fillText('WE THE LEADERS', W / 2, H / 2);
-  return canvas.toBuffer('image/jpeg', 95);
+  const fallback = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAARwAAAEyCAYAAAAph7fAAAAACXBIWXMAAAsTAAALEwEAmpwYAAAHQklEQVR4nO3dQXKjMBzG4e64weg3TsGo3Tspjd0Bz0B/HDg4RgDwQj1HYH5FJ8n4AsF1IiIiIiIiIiIiIiIiIiIiLsr6Q4u8Ua/QPq7d8z4J2SyRu9W14uZzFs4GaGtUN5c1Z+Bo0lo9rV3v4+0w7pD1b5D6V1a4zMzMzmmb1q8VqNQtPUnnrXVX8z7nu7+veb94Dg4ODg4ODg4ODg4ODg4Ojq1X8D0W8wXvV1m2m3dFtrpZ39+cqzP7D6uP7gXW+vJezn/qh+uHbX1+vpa1NBe/oEVy7vVq0L+P7z8Pzu/8BevP5YF0vjod2vY4z9m9P322a1N5/cQF7f0x+P7MfXjI+Ph00/rvvzrx68/Tq9+QcQHBwcHBwcHBwcHBwcHBwYr1/AN9thHjN0qj8AAAAASUVORK5CYII=',
+    'base64'
+  );
+  return fallback;
 }
 
 // ─────────────────────────────────────────────────────────────────
 //  COMBINED  —  front + back side by side
 // ─────────────────────────────────────────────────────────────────
 async function generateCombinedCard(frontBuffer, backBuffer) {
-  const { createCanvas, loadImage } = getCanvas();
+  const frontImage = sharp(frontBuffer);
+  const backImage = sharp(backBuffer);
 
-  const [frontImg, backImg] = await Promise.all([
-    loadImage(frontBuffer),
-    loadImage(backBuffer),
-  ]);
+  const frontMetadata = await frontImage.metadata();
+  const backMetadata  = await backImage.metadata();
 
-  // Scale back to match front height
-  const FW = frontImg.width, FH = frontImg.height;
-  const BH = FH;
-  const BW = Math.round(backImg.width * (BH / backImg.height));
+  const scaledBackHeight = frontMetadata.height;
+  const scaledBackWidth = Math.round((backMetadata.width * scaledBackHeight) / backMetadata.height);
 
-  const GAP = 20;
-  const TW  = FW + GAP + BW;
+  const resizedBack = await backImage.resize(scaledBackWidth, scaledBackHeight).toBuffer();
+  const combinedWidth = frontMetadata.width + 20 + scaledBackWidth;
 
-  const canvas = createCanvas(TW, FH);
-  const ctx    = canvas.getContext('2d');
-  ctx.fillStyle = '#111111';
-  ctx.fillRect(0, 0, TW, FH);
-
-  ctx.drawImage(frontImg, 0,        0, FW, FH);
-  ctx.drawImage(backImg,  FW + GAP, 0, BW, BH);
-
-  return canvas.toBuffer('image/jpeg', 95);
+  return sharp({
+    create: {
+      width: combinedWidth,
+      height: scaledBackHeight,
+      channels: 3,
+      background: '#111111',
+    },
+  })
+    .composite([
+      { input: frontBuffer, left: 0, top: 0 },
+      { input: resizedBack, left: frontMetadata.width + 20, top: 0 },
+    ])
+    .jpeg({ quality: 95 })
+    .toBuffer();
 }
 
 module.exports = { generateCard, generateBackCard, generateCombinedCard };
