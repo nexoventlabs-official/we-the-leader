@@ -82,7 +82,9 @@ function encryptResponse(responseObj, aesKeyBuffer, ivBuffer) {
 
 // ── POST /api/webhook/flow ────────────────────────────────────────
 router.post('/', express.json(), async (req, res) => {
-  const privatePem = (config.whatsapp.flowPrivateKey || '').replace(/\\n/g, '\n');
+  const privatePem = (config.whatsapp.flowPrivateKey || '')
+    .replace(/\\\\n/g, '\n')  // double-escaped in .env: \\n → newline
+    .replace(/\\n/g, '\n');   // single-escaped: \n → newline
 
   // If no private key configured — unencrypted mode
   if (!privatePem) {

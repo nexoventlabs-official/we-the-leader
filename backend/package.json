@@ -5,7 +5,10 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "flow:status": "node scripts/check-flow-status.js",
+    "flow:publish": "node scripts/publish-flows.js",
+    "flow:upload-key": "node scripts/upload-public-key.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.0",
