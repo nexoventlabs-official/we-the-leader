@@ -213,7 +213,7 @@ async function handleEpicEntry(body) {
     }
   } catch (e) { /* non-fatal */ }
 
-  // Lookup voter from DB1
+  // Lookup voter from DB1 with timeout handling
   try {
     const voter = await findVoterByEpic(epicNo);
     if (!voter) {
@@ -235,6 +235,16 @@ async function handleEpicEntry(body) {
     };
   } catch (err) {
     console.error('[Flow] EPIC lookup error:', err.message);
+    // Check if it's a timeout — provide a more helpful message
+    if (err.message?.includes('timeout') || err.message?.includes('ECONNREFUSED')) {
+      return {
+        screen: 'EPIC_ENTRY',
+        data: { 
+          error_message: 'Database is busy. Please wait a moment and try again.', 
+          show_error: true 
+        },
+      };
+    }
     return {
       screen: 'EPIC_ENTRY',
       data: { error_message: 'Server error. Please try again.', show_error: true },

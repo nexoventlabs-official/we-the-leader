@@ -153,22 +153,60 @@ const getVoterTotalCount = async () => {
 /**
  * findVoterByEpic(epicNo) — search across all ass_* collections for
  * a voter with the given EPIC_NO. Returns the document or null.
- * Uses parallel fan-out instead of sequential search for performance.
+ * Uses parallel fan-out with timeout to prevent WhatsApp flow timeouts.
+ * Results are cached for 1 hour to reduce database load.
  */
+const _epicCache = new Map(); // Simple in-memory cache for EPIC lookups
+const EPIC_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
 const findVoterByEpic = async (epicNo) => {
   if (!voterConnected) return null;
-  const db   = voterConn.db;
-  const cols = await db.listCollections({ name: /^ass_\d+$/ }).toArray();
-
-  // Parallel fan-out — all collections queried simultaneously
-  const results = await Promise.allSettled(
-    cols.map(c => db.collection(c.name).findOne({ EPIC_NO: epicNo }))
-  );
-
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) return r.value;
+  
+  // Check cache first
+  const cached = _epicCache.get(epicNo);
+  if (cached && Date.now() - cached.timestamp < EPIC_CACHE_TTL) {
+    return cached.data;
   }
-  return null;
+
+  const db   = voterConn.db;
+  
+  try {
+    const cols = await db.listCollections({ name: /^ass_\d+$/ }).toArray();
+
+    // Parallel fan-out with timeout (8 seconds total)
+    const queryPromises = cols.map(c => 
+      db.collection(c.name).findOne({ EPIC_NO: epicNo })
+    );
+
+    let result = null;
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('EPIC lookup timeout')), 8000)
+    );
+
+    try {
+      // First match wins
+      result = await Promise.race([
+        Promise.allSettled(queryPromises).then(results => {
+          for (const r of results) {
+            if (r.status === 'fulfilled' && r.value) return r.value;
+          }
+          return null;
+        }),
+        timeoutPromise
+      ]);
+    } catch (err) {
+      console.warn(`[DB1] EPIC lookup timeout for ${epicNo} — returning cached or null`);
+      result = null;
+    }
+
+    // Cache the result (even if null)
+    _epicCache.set(epicNo, { data: result, timestamp: Date.now() });
+    
+    return result;
+  } catch (err) {
+    console.error(`[DB1] findVoterByEpic error for ${epicNo}:`, err.message);
+    return null;
+  }
 };
 
 module.exports = { connectDB, getDb, getVoterDb, getVoterTotalCount, findVoterByEpic, mongoose: appConn };
