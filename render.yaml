@@ -2,7 +2,7 @@ services:
   - type: web
     name: wtl-backend
     env: node
-    region: singapore
+    region: oregon
     plan: starter
     buildCommand: cd backend && npm install
     startCommand: cd backend && node src/index.js
