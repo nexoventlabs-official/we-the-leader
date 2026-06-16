@@ -67,12 +67,8 @@ app.use((req, res, next) => {
 });
 
 // ── CORS ──────────────────────────────────────────────────────────
-// Meta webhook & flow endpoints are server-to-server calls — open CORS.
-// These routes are protected by HMAC signature / token verification.
-const META_PATHS = ['/api/webhook', '/api/webhook/flow'];
-app.use(META_PATHS, cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'] }));
-
-// All other routes: restrict to known origins in production
+// Meta webhook & flow endpoints are server-to-server — skip origin check.
+// All other routes restrict to known origins in production.
 const allowedOrigins = config.nodeEnv === 'development'
   ? ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000']
   : [
@@ -81,16 +77,25 @@ const allowedOrigins = config.nodeEnv === 'development'
       ...(config.extraOrigins || []),
     ].filter(Boolean);
 
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error(`Origin ${origin} not allowed by CORS`), false);
-  },
-  credentials:    true,
-  methods:        ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+const META_PATHS_RE = /^\/api\/webhook(\/flow)?(\/|$)/;
+
+app.use((req, res, next) => {
+  // Meta server-to-server paths — allow any origin, no credentials
+  if (META_PATHS_RE.test(req.path)) {
+    return cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'] })(req, res, next);
+  }
+  // All other routes — enforce origin allowlist
+  return cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`Origin ${origin} not allowed by CORS`), false);
+    },
+    credentials:    true,
+    methods:        ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })(req, res, next);
+});
 
 // ────────────────────────────────────────────────────────────────
 // Body-parsing order matters:
