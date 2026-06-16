@@ -84,10 +84,14 @@ function encryptResponse(responseObj, aesKeyBuffer, ivBuffer) {
 router.post('/', express.json(), async (req, res) => {
   const privatePem = (config.whatsapp.flowPrivateKey || '').replace(/\\n/g, '\n');
 
-  // If no private key configured, return 421 so Meta knows to skip encryption
+  // If no private key configured — unencrypted mode
   if (!privatePem) {
-    // Unencrypted mode — for dev/testing only
     return handleUnencrypted(req, res);
+  }
+
+  // Plain unencrypted ping (e.g. from direct health checks) — respond immediately
+  if (req.body && req.body.action === 'ping' && !req.body.encrypted_aes_key) {
+    return res.json({ version: req.body.version || '3.0', data: { status: 'active' } });
   }
 
   try {
@@ -101,7 +105,9 @@ router.post('/', express.json(), async (req, res) => {
     return res.json({ encrypted_response: encrypted });
   } catch (err) {
     console.error('[FlowEndpoint] Decrypt/encrypt error:', err.message);
-    return res.status(421).json({ error: 'decryption_failed' });
+    // Return 200 with error payload — Meta requires 200 to consider the endpoint available.
+    // 421 is only for cases where we want Meta to retry with a different key.
+    return res.status(200).json({ version: '3.0', screen: 'ERROR', data: { error: 'decryption_failed' } });
   }
 });
 
