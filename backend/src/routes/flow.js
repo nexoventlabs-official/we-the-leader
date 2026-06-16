@@ -239,20 +239,28 @@ async function handleEpicEntry(body) {
       };
     }
 
-    const voterName    = (voter.VOTER_NAME
+    // Build voter name — strip trailing punctuation/spaces from partial name fields
+    const rawName = (voter.VOTER_NAME
       || `${voter.FM_NAME_EN || ''} ${voter.LASTNAME_EN || ''}`.trim()
-      || 'Unknown').trim().slice(0, 100); // Limit to 100 chars, trim whitespace
-    const assemblyName = (voter.ASSEMBLY_NAME || voter.AC_NAME || '').trim().slice(0, 100);
-    const district     = (voter.DISTRICT || voter.DISTRICT_NAME || '').trim().slice(0, 100);
+      || `${voter.FM_NAME_V1 || ''} ${voter.LASTNAME_V1 || ''}`.trim()
+      || 'Unknown').trim().replace(/[\s\-–—]+$/, '').trim();
+    const voterName    = (rawName || 'Unknown').slice(0, 100);
 
-    console.log(`[Flow] EPIC found: ${epicNo} → ${voterName}`);
+    // Assembly and district — WhatsApp Flow TextBody cannot be empty string,
+    // so always fall back to a non-empty placeholder
+    const rawAssembly  = (voter.ASSEMBLY_NAME || voter.AC_NAME || '').trim().slice(0, 100);
+    const rawDistrict  = (voter.DISTRICT || voter.DISTRICT_NAME || '').trim().slice(0, 100);
+    const assemblyName = rawAssembly  || 'N/A';
+    const district     = rawDistrict  || 'N/A';
+
+    console.log(`[Flow] EPIC found: ${epicNo} → name="${voterName}" assembly="${assemblyName}" district="${district}"`);
     
     const responsePayload = {
       screen: 'CONFIRM_DETAILS',
       data: { epic_no: epicNo, voter_name: voterName, assembly_name: assemblyName, district },
     };
     
-    console.log(`[Flow] Returning CONFIRM_DETAILS:`, JSON.stringify(responsePayload).slice(0, 200));
+    console.log(`[Flow] Returning CONFIRM_DETAILS:`, JSON.stringify(responsePayload));
     
     return responsePayload;
   } catch (err) {
