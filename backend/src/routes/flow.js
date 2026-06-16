@@ -140,13 +140,22 @@ router.post(
     try {
       screenResponse = await buildResponse(decryptedBody);
     } catch (err) {
-      console.error('[Flow] buildResponse error:', err.message);
+      console.error('[Flow] buildResponse error:', err.message, 'Stack:', err.stack);
       screenResponse = { data: { status: 'active' } }; // safe fallback for ping
     }
 
-    return res
-      .set('Content-Type', 'application/json')
-      .json({ encrypted_response: encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer) });
+    // Ensure response is always valid JSON
+    try {
+      const encryptedResp = encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer);
+      return res
+        .set('Content-Type', 'application/json')
+        .status(200)
+        .json({ encrypted_response: encryptedResp });
+    } catch (err) {
+      console.error('[Flow] Encryption error:', err.message);
+      // Last-ditch fallback: return active status
+      return res.status(200).json({ data: { status: 'active' } });
+    }
   },
 );
 
