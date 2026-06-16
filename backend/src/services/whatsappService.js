@@ -133,6 +133,7 @@ async function sendFlowMessage(to, flowType) {
   if (!checkConfig()) return { success: false, error: 'WhatsApp not configured' };
 
   const isLogin = flowType === 'login';
+  const startScreen = isLogin ? 'MOBILE_INPUT' : 'EPIC_ENTRY';
   const flowId  = isLogin
     ? config.whatsapp.flows.loginId
     : config.whatsapp.flows.registrationId;
@@ -171,7 +172,7 @@ async function sendFlowMessage(to, flowType) {
               flow_cta:             ctaLabel,
               flow_action:          'navigate',
               flow_action_payload: {
-                screen: isLogin ? 'MOBILE_INPUT' : 'WELCOME',
+                screen: startScreen,
               },
             },
           },
