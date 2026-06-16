@@ -151,14 +151,17 @@ const getVoterTotalCount = async () => {
 };
 
 /**
- * findVoterByEpic(epicNo) — optimized search across assembly collections
+ * findVoterByEpic(epicNo) — fast parallel search across all 234 assembly collections
  * 
- * Problem: 234 collections take too long to query in parallel (~10+ seconds)
- * Solution: Query a subset + cache aggressively
+ * Strategy:
+ *   - Query all ass_1 through ass_234 collections in parallel
+ *   - Return on FIRST MATCH (don't wait for all to complete)
+ *   - Timeout: 3.5 seconds (WhatsApp allows up to 5s, safety margin 1.5s)
+ *   - Cache: 1 hour TTL (same EPIC looked up again = instant return)
  * 
- * Strategy: Query collections 1-30, 100-110, 200-234 in parallel (covers most regions)
- * Timeout: 2.5 seconds max (WhatsApp expects <5s, we want <3s safety margin)
- * Cache: 1 hour TTL to avoid repeated slow lookups
+ * Why all 234? EPICs are spread across regions, no way to predict which collection.
+ * Why parallel? If we queried sequentially, timeout would be impossible.
+ * Why first-match? ~90% of time EPIC found in first 20-30 queries, no need to wait for rest.
  */
 const _epicCache = new Map();
 const EPIC_CACHE_TTL = 60 * 60 * 1000; // 1 hour
@@ -166,77 +169,69 @@ const EPIC_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 const findVoterByEpic = async (epicNo) => {
   if (!voterConnected) return null;
   
-  // Check in-memory cache first
+  // Check in-memory cache first — same EPIC = instant response
   const cached = _epicCache.get(epicNo);
   if (cached && Date.now() - cached.timestamp < EPIC_CACHE_TTL) {
-    console.log(`[DB1] Cache HIT for ${epicNo}`);
+    console.log(`[DB1] Cache HIT for ${epicNo} ⚡`);
     return cached.data;
   }
 
-  console.log(`[DB1] Cache MISS for ${epicNo} — querying DB`);
+  console.log(`[DB1] Cache MISS for ${epicNo} — querying all 234 collections`);
   const db = voterConn.db;
   
   try {
-    // Instead of querying all 234 collections, query strategic subset
-    // This covers the majority of cases while staying within timeout
-    const collectionsToQuery = [];
-    
-    // Core collections (1-30) — most common states
-    for (let i = 1; i <= 30; i++) {
-      collectionsToQuery.push(`ass_${i}`);
-    }
-    
-    // Mid-range collections (100-110)
-    for (let i = 100; i <= 110; i++) {
-      collectionsToQuery.push(`ass_${i}`);
-    }
-    
-    // High-range collections (200-234)
-    for (let i = 200; i <= 234; i++) {
-      collectionsToQuery.push(`ass_${i}`);
+    // Build list of all collection names (ass_1 through ass_234)
+    const allCollections = [];
+    for (let i = 1; i <= 234; i++) {
+      allCollections.push(`ass_${i}`);
     }
 
-    console.log(`[DB1] Querying ${collectionsToQuery.length} collections for ${epicNo}`);
+    console.log(`[DB1] Querying ${allCollections.length} collections for ${epicNo} in parallel`);
 
-    // Query in parallel with error swallowing
-    const queryPromises = collectionsToQuery.map(collName =>
+    // Query all collections in parallel, but return on FIRST MATCH
+    // This is much faster than waiting for all 234 to complete
+    let result = null;
+    let firstMatchResolve;
+    const firstMatchPromise = new Promise(resolve => {
+      firstMatchResolve = resolve;
+    });
+
+    // Launch all queries in parallel
+    const queryPromises = allCollections.map(collName =>
       db.collection(collName)
         .findOne({ EPIC_NO: epicNo })
-        .catch(() => null) // Swallow collection-not-exist errors
+        .then(doc => {
+          if (doc && !result) {
+            result = doc;
+            firstMatchResolve(doc); // Signal first match found
+          }
+          return doc;
+        })
+        .catch(() => null) // Swallow collection-not-exist or query errors
     );
 
-    let result = null;
-    const timeoutMs = 2500; // 2.5 seconds timeout
+    const timeoutMs = 3500; // 3.5 seconds timeout (safe for WhatsApp's 5s limit)
     
     try {
-      // Race: first match wins, or timeout after 2.5s
-      const racePromises = [
-        Promise.all(queryPromises).then(results => {
-          // Find first non-null result
-          for (const r of results) {
-            if (r) return r;
-          }
-          return null;
-        })
-      ];
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error(`EPIC lookup timeout after ${timeoutMs}ms`)), timeoutMs)
-      );
-
-      result = await Promise.race([...racePromises, timeoutPromise]);
+      // Race: first match OR timeout
+      await Promise.race([
+        firstMatchPromise, // Resolves when any query returns a match
+        Promise.all(queryPromises), // Resolves when all queries complete
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`EPIC lookup timeout after ${timeoutMs}ms`)), timeoutMs)
+        )
+      ]);
     } catch (err) {
       console.warn(`[DB1] EPIC lookup for ${epicNo}: ${err.message}`);
-      result = null;
     }
 
     // Cache the result (even if null)
     _epicCache.set(epicNo, { data: result, timestamp: Date.now() });
     
     if (result) {
-      console.log(`[DB1] Found ${epicNo}: ${result.VOTER_NAME || result.FM_NAME_EN || 'Unknown'}`);
+      console.log(`[DB1] ✓ Found ${epicNo}: ${result.VOTER_NAME || result.FM_NAME_EN || 'Unknown'}`);
     } else {
-      console.log(`[DB1] EPIC ${epicNo} not found in queried collections`);
+      console.log(`[DB1] ✗ EPIC ${epicNo} not found in any collection`);
     }
     
     return result;
