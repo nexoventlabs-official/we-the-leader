@@ -1,9 +1,10 @@
 /**
  * WhatsApp Cloud API — outbound message helpers
  * ─────────────────────────────────────────────────────────────────
- * sendTextMessage(to, text)          — plain text reply
- * sendFlowMessage(to, flowId, type)  — interactive flow message
- *   type: 'registration' | 'login'
+ * sendTextMessage(to, text)              — plain text reply
+ * sendReplyButtons(to, body, buttons)    — interactive reply buttons
+ * sendImageMessage(to, imageUrl, caption)— send an image by URL
+ * sendFlowMessage(to, flowType)          — interactive flow (registration)
  *
  * All functions return { success, data } or { success: false, error }
  */
@@ -20,17 +21,24 @@ function authHeaders() {
   return { Authorization: `Bearer ${config.whatsapp.accessToken}` };
 }
 
-// ── Send a plain text message ─────────────────────────────────────
-async function sendTextMessage(to, text) {
-  const phoneId = config.whatsapp.phoneNumberId;
-  if (!phoneId || !config.whatsapp.accessToken) {
-    console.error('[WA] WHATSAPP_PHONE_NUMBER_ID or ACCESS_TOKEN not configured');
-    return { success: false, error: 'WhatsApp not configured' };
-  }
+function phoneId() {
+  return config.whatsapp.phoneNumberId;
+}
 
+function checkConfig() {
+  if (!phoneId() || !config.whatsapp.accessToken) {
+    console.error('[WA] WHATSAPP_PHONE_NUMBER_ID or ACCESS_TOKEN not configured');
+    return false;
+  }
+  return true;
+}
+
+// ── Plain text message ────────────────────────────────────────────
+async function sendTextMessage(to, text) {
+  if (!checkConfig()) return { success: false, error: 'WhatsApp not configured' };
   try {
     const { data } = await axios.post(
-      `${BASE}/${phoneId}/messages`,
+      `${BASE}/${phoneId()}/messages`,
       {
         messaging_product: 'whatsapp',
         recipient_type:    'individual',
@@ -43,26 +51,89 @@ async function sendTextMessage(to, text) {
     console.log(`[WA] Text sent to ${to}:`, data?.messages?.[0]?.id);
     return { success: true, data };
   } catch (err) {
-    const errData = err.response?.data?.error || err.message;
-    console.error(`[WA] sendTextMessage to ${to} failed:`, JSON.stringify(errData));
-    return { success: false, error: errData };
+    const e = err.response?.data?.error || err.message;
+    console.error(`[WA] sendTextMessage to ${to} failed:`, JSON.stringify(e));
+    return { success: false, error: e };
   }
 }
 
-// ── Send a WhatsApp Flow message ──────────────────────────────────
+// ── Interactive reply buttons ─────────────────────────────────────
 /**
- * @param {string} to          — recipient phone number (with country code, no +)
- * @param {'registration'|'login'} flowType
+ * @param {string} to
+ * @param {string} bodyText   — main message body
+ * @param {Array}  buttons    — max 3, each: { id: string, title: string }
+ * @param {string} [header]   — optional header text
+ * @param {string} [footer]   — optional footer text
  */
-async function sendFlowMessage(to, flowType) {
-  const phoneId = config.whatsapp.phoneNumberId;
-  if (!phoneId || !config.whatsapp.accessToken) {
-    console.error('[WA] WHATSAPP_PHONE_NUMBER_ID or ACCESS_TOKEN not configured');
-    return { success: false, error: 'WhatsApp not configured' };
-  }
+async function sendReplyButtons(to, bodyText, buttons, header, footer) {
+  if (!checkConfig()) return { success: false, error: 'WhatsApp not configured' };
+  try {
+    const interactive = {
+      type: 'button',
+      body: { text: bodyText },
+      action: {
+        buttons: buttons.map(b => ({
+          type:  'reply',
+          reply: { id: b.id, title: b.title },
+        })),
+      },
+    };
+    if (header) interactive.header = { type: 'text', text: header };
+    if (footer) interactive.footer = { text: footer };
 
-  const isLogin        = flowType === 'login';
-  const flowId         = isLogin
+    const { data } = await axios.post(
+      `${BASE}/${phoneId()}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        recipient_type:    'individual',
+        to,
+        type: 'interactive',
+        interactive,
+      },
+      { headers: authHeaders() },
+    );
+    console.log(`[WA] Reply buttons sent to ${to}:`, data?.messages?.[0]?.id);
+    return { success: true, data };
+  } catch (err) {
+    const e = err.response?.data?.error || err.message;
+    console.error(`[WA] sendReplyButtons to ${to} failed:`, JSON.stringify(e));
+    return { success: false, error: e };
+  }
+}
+
+// ── Send image by URL ─────────────────────────────────────────────
+async function sendImageMessage(to, imageUrl, caption) {
+  if (!checkConfig()) return { success: false, error: 'WhatsApp not configured' };
+  try {
+    const { data } = await axios.post(
+      `${BASE}/${phoneId()}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        recipient_type:    'individual',
+        to,
+        type: 'image',
+        image: {
+          link:    imageUrl,
+          caption: caption || '',
+        },
+      },
+      { headers: authHeaders() },
+    );
+    console.log(`[WA] Image sent to ${to}:`, data?.messages?.[0]?.id);
+    return { success: true, data };
+  } catch (err) {
+    const e = err.response?.data?.error || err.message;
+    console.error(`[WA] sendImageMessage to ${to} failed:`, JSON.stringify(e));
+    return { success: false, error: e };
+  }
+}
+
+// ── WhatsApp Flow message (registration only) ─────────────────────
+async function sendFlowMessage(to, flowType) {
+  if (!checkConfig()) return { success: false, error: 'WhatsApp not configured' };
+
+  const isLogin = flowType === 'login';
+  const flowId  = isLogin
     ? config.whatsapp.flows.loginId
     : config.whatsapp.flows.registrationId;
 
@@ -71,23 +142,16 @@ async function sendFlowMessage(to, flowType) {
     return { success: false, error: `Flow ID missing for ${flowType}` };
   }
 
-  // flow_token — unique per session; use timestamp + phone for traceability
-  const flowToken = `${flowType}_${to}_${Date.now()}`;
-
-  // Header + body text vary by flow type
-  const headerText = isLogin
-    ? 'Welcome Back! 👋'
-    : 'Join We The Leaders! 🎉';
-
-  const bodyText = isLogin
+  const flowToken  = `${flowType}_${to}_${Date.now()}`;
+  const headerText = isLogin ? 'Welcome Back! 👋' : 'Join We The Leaders! 🎉';
+  const bodyText   = isLogin
     ? 'You are already a registered member. Tap below to log in and access your Digital Member ID Card.'
     : 'You are not yet registered. Tap below to verify your Voter ID and generate your free Digital Member ID Card.';
-
-  const ctaLabel = isLogin ? 'Open My Card' : 'Get Member Card';
+  const ctaLabel   = isLogin ? 'Open My Card' : 'Get Member Card';
 
   try {
     const { data } = await axios.post(
-      `${BASE}/${phoneId}/messages`,
+      `${BASE}/${phoneId()}/messages`,
       {
         messaging_product: 'whatsapp',
         recipient_type:    'individual',
@@ -95,16 +159,9 @@ async function sendFlowMessage(to, flowType) {
         type: 'interactive',
         interactive: {
           type: 'flow',
-          header: {
-            type: 'text',
-            text: headerText,
-          },
-          body: {
-            text: bodyText,
-          },
-          footer: {
-            text: 'We The Leaders — Lead the Change',
-          },
+          header: { type: 'text', text: headerText },
+          body:   { text: bodyText },
+          footer: { text: 'We The Leaders — Lead the Change' },
           action: {
             name: 'flow',
             parameters: {
@@ -122,15 +179,15 @@ async function sendFlowMessage(to, flowType) {
       },
       { headers: authHeaders() },
     );
-
     const msgId = data?.messages?.[0]?.id;
-    console.log(`[WA] Flow message (${flowType}) sent to ${to}: ${msgId}`);
+    console.log(`[WA] Flow (${flowType}) sent to ${to}: ${msgId}`);
     return { success: true, data, flowToken };
   } catch (err) {
-    const errData = err.response?.data?.error || err.message;
-    console.error(`[WA] sendFlowMessage (${flowType}) to ${to} failed:`, JSON.stringify(errData));
-    return { success: false, error: errData };
+    const e = err.response?.data?.error || err.message;
+    console.error(`[WA] sendFlowMessage (${flowType}) to ${to} failed:`, JSON.stringify(e));
+    return { success: false, error: e };
   }
 }
 
-module.exports = { sendTextMessage, sendFlowMessage };
+module.exports = { sendTextMessage, sendReplyButtons, sendImageMessage, sendFlowMessage };
+
