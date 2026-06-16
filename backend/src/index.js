@@ -66,34 +66,31 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── CORS — reject unknown origins in production ───────────────────
+// ── CORS ──────────────────────────────────────────────────────────
+// Meta webhook & flow endpoints are server-to-server calls — open CORS.
+// These routes are protected by HMAC signature / token verification.
+const META_PATHS = ['/api/webhook', '/api/webhook/flow'];
+app.use(META_PATHS, cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'] }));
+
+// All other routes: restrict to known origins in production
 const allowedOrigins = config.nodeEnv === 'development'
   ? ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000']
   : [
-      config.baseUrl,                                      // https://we-the-leader.onrender.com
-      config.frontendUrl,                                  // https://we-the-leader.vercel.app
-      ...(config.extraOrigins || []),                      // any extra origins from EXTRA_ORIGINS env
+      config.baseUrl,
+      config.frontendUrl,
+      ...(config.extraOrigins || []),
     ].filter(Boolean);
-
-// Meta webhook & flow endpoints are server-to-server — exempt from CORS
-const META_PATHS = ['/api/webhook', '/api/webhook/flow'];
 
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow same-origin (no Origin header) and server-to-server calls
     if (!origin) return cb(null, true);
     if (allowedOrigins.includes(origin)) return cb(null, true);
-    // Reject all other origins — never silently allow in production
     cb(new Error(`Origin ${origin} not allowed by CORS`), false);
   },
   credentials:    true,
   methods:        ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
-// Allow all origins for Meta server-to-server calls (webhook + flow endpoint)
-// These routes are protected by HMAC signature / token verification, not CORS
-app.use(META_PATHS, cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'] }));
 
 // ────────────────────────────────────────────────────────────────
 // Body-parsing order matters:
