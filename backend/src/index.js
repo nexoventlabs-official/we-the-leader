@@ -89,15 +89,21 @@ app.use(cors({
 }));
 
 // ────────────────────────────────────────────────────────────────
-// IMPORTANT: WhatsApp webhook route uses raw body for HMAC-SHA256.
-// Register flow route BEFORE raw middleware — flow uses express.json().
+// Body-parsing order matters:
+//
+//  /api/webhook/flow  → express.json() (handled inside flow.js)
+//  /api/webhook       → express.raw()  for HMAC-SHA256 on Meta messages
+//
+// The raw middleware MUST be scoped to the exact /api/webhook path
+// (not /api/webhook/*) so it does NOT consume the body for /api/webhook/flow.
 // ────────────────────────────────────────────────────────────────
 
-// WhatsApp Flow endpoint — uses express.json() (handled inside flow.js)
+// WhatsApp Flow endpoint — body parsed by express.json() inside flow.js
 app.use('/api/webhook/flow', flowRoutes);
 
 // WhatsApp message webhook — raw body required for HMAC-SHA256
-app.use('/api/webhook', express.raw({ type: 'application/json' }));
+// Use a path regex that matches /api/webhook exactly (no sub-paths like /flow)
+app.use(/^\/api\/webhook$/, express.raw({ type: 'application/json' }));
 app.use('/api/webhook', webhookRoutes);
 
 // ── Body parsers (all other routes) ──────────────────────────────
