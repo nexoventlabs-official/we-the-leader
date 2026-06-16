@@ -8,7 +8,9 @@
     "dev": "nodemon src/index.js",
     "flow:status": "node scripts/check-flow-status.js",
     "flow:publish": "node scripts/publish-flows.js",
-    "flow:upload-key": "node scripts/upload-public-key.js"
+    "flow:upload-key": "node scripts/upload-public-key.js",
+    "flow:subscribe": "node scripts/subscribe-waba.js",
+    "flow:recreate": "node scripts/recreate-flows.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.0",

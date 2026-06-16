@@ -14,7 +14,7 @@ services:
       # ── Secrets — set these as Render Secret environment variables ──
       # Never commit actual values. Set via Render dashboard → Environment.
       - key: MONGO_URI
-        sync: false          # Mark as secret — set in dashboard
+        sync: false # Mark as secret — set in dashboard
       - key: MONGO_DB
         value: wetheleaders
       - key: MONGO_VOTER_URL
@@ -36,7 +36,7 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
       - key: SESSION_SECRET
-        generateValue: true  # Render generates a strong random value
+        generateValue: true # Render generates a strong random value
       - key: SMS_API_KEY
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN
@@ -48,4 +48,12 @@ services:
       - key: WHATSAPP_PHONE_NUMBER_ID
         sync: false
       - key: BASE_URL
-        sync: false          # Set to your production domain e.g. https://app.wetheleaders.in
+        sync: false # Set to your production domain e.g. https://we-the-leader.onrender.com
+      - key: WHATSAPP_WABA_ID
+        sync: false
+      - key: WHATSAPP_FLOW_PRIVATE_KEY
+        sync: false # RSA private key (newlines as \n)
+      - key: WHATSAPP_FLOW_REGISTRATION_ID
+        sync: false # Updated after recreate-flows.js
+      - key: WHATSAPP_FLOW_LOGIN_ID
+        sync: false # Updated after recreate-flows.js
