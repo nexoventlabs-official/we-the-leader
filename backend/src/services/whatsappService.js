@@ -115,7 +115,6 @@ async function sendFlowMessage(to, flowType) {
               flow_action:          'navigate',
               flow_action_payload: {
                 screen: isLogin ? 'MOBILE_INPUT' : 'WELCOME',
-                data:   {},
               },
             },
           },
