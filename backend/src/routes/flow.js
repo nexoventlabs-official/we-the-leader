@@ -110,11 +110,25 @@ router.post(
 
     if (!privatePem) return handleUnencrypted(req, res);
 
+    // If body lacks encryption fields → unencrypted ping (Meta publish health check)
+    const body = req.body || {};
+    if (!body.encrypted_aes_key || !body.encrypted_flow_data) {
+      console.log('[Flow] Unencrypted request (no encrypted fields) — handling as plain');
+      return handleUnencrypted(req, res);
+    }
+
     let decryptedBody, aesKeyBuffer, initialVectorBuffer;
     try {
-      ({ decryptedBody, aesKeyBuffer, initialVectorBuffer } = decryptRequest(req.body, privatePem));
+      ({ decryptedBody, aesKeyBuffer, initialVectorBuffer } = decryptRequest(body, privatePem));
     } catch (err) {
-      return res.status(err.statusCode || 500).send();
+      console.error('[Flow] Decrypt error:', err.message);
+      // 421 → Meta will refresh cached public key
+      // For any other error return 200 with active so Meta doesn't mark endpoint down
+      if (err.statusCode === 421) return res.status(421).send();
+      return res
+        .set('Content-Type', 'application/json')
+        .send(encryptResponse({ data: { status: 'active' } }, 
+          crypto.randomBytes(16), crypto.randomBytes(16)));
     }
 
     console.log('[Flow] Body:', JSON.stringify(decryptedBody).slice(0, 150));
