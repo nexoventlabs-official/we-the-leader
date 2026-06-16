@@ -39,8 +39,8 @@ function verifySignature(rawBody, sigHeader) {
   }
 }
 
-// ── GET /api/webhook/meta — Meta verification handshake ──────────
-router.get('/meta', (req, res) => {
+// ── GET /api/webhook  AND  /api/webhook/meta — Meta verification handshake ──
+function handleVerification(req, res) {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -73,10 +73,14 @@ router.get('/meta', (req, res) => {
 
   console.log('[Webhook] Meta verification successful');
   return res.status(200).send(challenge);
-});
+}
 
-// ── POST /api/webhook/meta — incoming events ─────────────────────
-router.post('/meta', async (req, res) => {
+// Handle both /api/webhook (root) and /api/webhook/meta
+router.get('/',     handleVerification);
+router.get('/meta', handleVerification);
+
+// ── POST /api/webhook  AND  /api/webhook/meta — incoming events ──
+async function handleIncoming(req, res) {
   // req.body is a Buffer (express.raw middleware in index.js)
   const rawBody  = req.body;
   const sigHeader = req.headers['x-hub-signature-256'];
@@ -102,7 +106,11 @@ router.post('/meta', async (req, res) => {
   setImmediate(() => processPayload(payload).catch(err => {
     console.error('[Webhook] Processing error:', err.message);
   }));
-});
+}
+
+// Handle both /api/webhook (root) and /api/webhook/meta
+router.post('/',     handleIncoming);
+router.post('/meta', handleIncoming);
 
 // ── Async payload processor ───────────────────────────────────────
 async function processPayload(payload) {
