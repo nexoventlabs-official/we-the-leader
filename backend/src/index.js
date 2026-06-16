@@ -64,7 +64,11 @@ app.use((req, res, next) => {
 // ── CORS — reject unknown origins in production ───────────────────
 const allowedOrigins = config.nodeEnv === 'development'
   ? ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000']
-  : [config.baseUrl];
+  : [
+      config.baseUrl,                                      // https://we-the-leader.onrender.com
+      config.frontendUrl,                                  // https://we-the-leader.vercel.app
+      ...(config.extraOrigins || []),                      // any extra origins from EXTRA_ORIGINS env
+    ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, cb) => {
