@@ -3,21 +3,20 @@
  * ─────────────────────────────────────────────────────────────────
  * POST /api/webhook/flow
  *
- * Meta Flow requests are AES-128-GCM encrypted with a key that is
- * itself RSA-OAEP-SHA256 encrypted using the public key we uploaded
- * to Meta.  We decrypt with our private key, process the screen
- * action, then re-encrypt the response.
+ * Registration flow (SIGN_UP):
+ *   EPIC_ENTRY  → validate EPIC from DB1 → CONFIRM_DETAILS
+ *   CONFIRM_DETAILS → save pending_registrations doc keyed by WA number
+ *                   → SUCCESS screen ("send your photo in chat")
  *
- * CRITICAL — response format (per Meta official sample):
- *   res.send(base64string)   ← raw base64, NOT JSON wrapper
+ * Login flow (SIGN_IN):
+ *   MOBILE_INPUT → send OTP via SMS → OTP_VERIFY
+ *   OTP_VERIFY   → verify OTP → SUCCESS
  *
- * Health-check ping response (decrypted ping body → encrypted back):
- *   { data: { status: "active" } }    ← no "version" field
+ * The WA sender's phone number (flow_token encodes it) is used as
+ * the mobile number for registration — no OTP needed.
  *
- * On RSA decrypt failure → return HTTP 421 so Meta refreshes its
- * cached public key.
- *
- * Ref: https://developers.facebook.com/docs/whatsapp/flows/guides/implementingyourflowendpoint
+ * Encryption: Meta AES-128-GCM + RSA-OAEP-SHA256
+ * Response:   raw base64 string (NOT JSON wrapper)
  */
 
 'use strict';
@@ -27,51 +26,32 @@ const router  = express.Router();
 const crypto  = require('crypto');
 const config  = require('../config');
 const { getDb, findVoterByEpic } = require('../db');
-const { sendOtp }                = require('../services/smsService');
-const { validateMobile, validateEpic, validateOtp } = require('../utils/validators');
+const { sendOtp }  = require('../services/smsService');
+const { validateEpic, validateMobile, validateOtp } = require('../utils/validators');
 
-// ── RSA + AES helpers (matching Meta's official Node.js sample) ───
+// ── Crypto helpers ────────────────────────────────────────────────
 
-/**
- * Decrypt an incoming Meta Flow request.
- * Returns { decryptedBody, aesKeyBuffer, initialVectorBuffer }
- * Throws FlowEndpointException(421) if RSA decryption fails.
- */
 function decryptRequest(body, privatePem) {
   const { encrypted_aes_key, encrypted_flow_data, initial_vector } = body;
-
-  // 1. RSA-OAEP-SHA256 decrypt the AES key
   const privateKey = crypto.createPrivateKey({ key: privatePem });
   let aesKeyBuffer;
   try {
     aesKeyBuffer = crypto.privateDecrypt(
-      {
-        key:     privateKey,
-        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-        oaepHash: 'sha256',
-      },
+      { key: privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' },
       Buffer.from(encrypted_aes_key, 'base64'),
     );
   } catch (err) {
     console.error('[Flow] RSA decrypt failed:', err.message);
-    // 421 → Meta will refresh its cached public key
-    const e = new Error('Failed to decrypt AES key. Verify private key.');
+    const e = new Error('RSA decrypt failed');
     e.statusCode = 421;
     throw e;
   }
-
-  // 2. AES-128-GCM decrypt the flow data
   const flowDataBuf = Buffer.from(encrypted_flow_data, 'base64');
   const ivBuf       = Buffer.from(initial_vector, 'base64');
   const TAG_LENGTH  = 16;
-  const encData     = flowDataBuf.subarray(0, -TAG_LENGTH);
-  const authTag     = flowDataBuf.subarray(-TAG_LENGTH);
-
-  const decipher = crypto.createDecipheriv('aes-128-gcm', aesKeyBuffer, ivBuf);
-  decipher.setAuthTag(authTag);
-
-  const decrypted = Buffer.concat([decipher.update(encData), decipher.final()]);
-
+  const decipher    = crypto.createDecipheriv('aes-128-gcm', aesKeyBuffer, ivBuf);
+  decipher.setAuthTag(flowDataBuf.subarray(-TAG_LENGTH));
+  const decrypted = Buffer.concat([decipher.update(flowDataBuf.subarray(0, -TAG_LENGTH)), decipher.final()]);
   return {
     decryptedBody:       JSON.parse(decrypted.toString('utf-8')),
     aesKeyBuffer,
@@ -79,288 +59,248 @@ function decryptRequest(body, privatePem) {
   };
 }
 
-/**
- * Encrypt our response object back to the client.
- * Returns a raw base64 string — send it directly with res.send().
- */
-function encryptResponse(responseObj, aesKeyBuffer, initialVectorBuffer) {
-  // Flip every bit of the IV for the response direction
-  const flippedIv = Buffer.from(initialVectorBuffer.map(b => ~b & 0xff));
-
-  const cipher = crypto.createCipheriv('aes-128-gcm', aesKeyBuffer, flippedIv);
+function encryptResponse(obj, aesKeyBuffer, ivBuf) {
+  const flipped = Buffer.from(ivBuf.map(b => ~b & 0xff));
+  const cipher  = crypto.createCipheriv('aes-128-gcm', aesKeyBuffer, flipped);
   return Buffer.concat([
-    cipher.update(JSON.stringify(responseObj), 'utf-8'),
+    cipher.update(JSON.stringify(obj), 'utf-8'),
     cipher.final(),
     cipher.getAuthTag(),
   ]).toString('base64');
 }
 
-// ── Request signature verification ───────────────────────────────
+// ── Signature check ───────────────────────────────────────────────
 
 function isSignatureValid(rawBody, sigHeader) {
   const appSecret = config.whatsapp.appSecret;
   if (!appSecret) {
-    console.warn('[Flow] WHATSAPP_APP_SECRET not set — skipping signature check');
-    return true; // allow in development
+    console.warn('[Flow] WHATSAPP_APP_SECRET not set — skipping check');
+    return true;
   }
   if (!sigHeader || !sigHeader.startsWith('sha256=')) return false;
-  const sig  = sigHeader.slice('sha256='.length);
   const hmac = crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
   try {
     return crypto.timingSafeEqual(
-      Buffer.from(sig,  'utf-8'),
+      Buffer.from(sigHeader.slice('sha256='.length), 'utf-8'),
       Buffer.from(hmac, 'utf-8'),
     );
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
-// ── POST /api/webhook/flow ────────────────────────────────────────
+// ── Route ─────────────────────────────────────────────────────────
 
 router.post(
   '/',
-  // Store raw body for signature verification, then parse JSON
   express.json({
-    verify: (req, _res, buf, encoding) => {
-      req.rawBody = buf?.toString(encoding || 'utf-8');
-    },
+    verify: (req, _res, buf, enc) => { req.rawBody = buf?.toString(enc || 'utf-8'); },
   }),
   async (req, res) => {
-    // 1. Signature check
     if (!isSignatureValid(req.rawBody || '', req.headers['x-hub-signature-256'])) {
-      console.warn('[Flow] Invalid request signature — rejected');
+      console.warn('[Flow] Signature invalid');
       return res.status(432).send();
     }
 
-    // 2. Resolve private key (handle both \\n and \n in .env)
     const privatePem = (config.whatsapp.flowPrivateKey || '')
-      .replace(/\\\\n/g, '\n')
-      .replace(/\\n/g,   '\n')
-      .trim();
+      .replace(/\\\\n/g, '\n').replace(/\\n/g, '\n').trim();
 
-    // 3. No private key → unencrypted mode (dev / plain health checks)
-    if (!privatePem) {
-      return handleUnencrypted(req, res);
-    }
+    if (!privatePem) return handleUnencrypted(req, res);
 
-    // 4. Decrypt
     let decryptedBody, aesKeyBuffer, initialVectorBuffer;
     try {
       ({ decryptedBody, aesKeyBuffer, initialVectorBuffer } = decryptRequest(req.body, privatePem));
     } catch (err) {
-      console.error('[Flow] Decrypt error:', err.message);
-      const code = err.statusCode || 500;
-      return res.status(code).send();
+      return res.status(err.statusCode || 500).send();
     }
 
-    console.log('[Flow] Decrypted body:', JSON.stringify(decryptedBody).slice(0, 120));
+    console.log('[Flow] Body:', JSON.stringify(decryptedBody).slice(0, 150));
 
-    // 5. Build screen response
     let screenResponse;
     try {
       screenResponse = await buildResponse(decryptedBody);
     } catch (err) {
       console.error('[Flow] buildResponse error:', err.message);
-      screenResponse = errorScreen(decryptedBody, 'Internal server error. Please try again.');
+      screenResponse = { data: { status: 'active' } }; // safe fallback for ping
     }
 
-    console.log('[Flow] Response:', JSON.stringify(screenResponse).slice(0, 120));
-
-    // 6. Encrypt and send raw base64 (NOT wrapped in JSON)
-    const encrypted = encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer);
-    return res.send(encrypted);
+    return res.send(encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer));
   },
 );
 
-// ── Unencrypted handler (dev mode / no private key) ──────────────
+// ── Unencrypted dev mode ──────────────────────────────────────────
 
 async function handleUnencrypted(req, res) {
   const body = req.body || {};
-  // Plain ping
-  if (body.action === 'ping') {
-    return res.json({ data: { status: 'active' } });
-  }
+  if (body.action === 'ping') return res.json({ data: { status: 'active' } });
   try {
-    const response = await buildResponse(body);
-    return res.json(response);
+    return res.json(await buildResponse(body));
   } catch (err) {
-    console.error('[Flow] Unencrypted handler error:', err.message);
     return res.status(500).json({ error: 'internal_error' });
   }
 }
 
-// ── Core response builder ─────────────────────────────────────────
+// ── Core router ───────────────────────────────────────────────────
 
 async function buildResponse(body) {
-  const { action, screen, data = {} } = body;
+  const { action, screen, data = {}, flow_token = '' } = body;
 
-  // ── Health check ──────────────────────────────────────────────
-  if (action === 'ping') {
-    return { data: { status: 'active' } };
-  }
+  if (action === 'ping')  return { data: { status: 'active' } };
+  if (data?.error)        return { data: { acknowledged: true } };
+  if (action === 'INIT')  return { screen: screen || 'EPIC_ENTRY', data: { error_message: '', show_error: false } };
 
-  // ── Client error notification ─────────────────────────────────
-  if (data?.error) {
-    console.warn('[Flow] Client error received:', data.error);
-    return { data: { acknowledged: true } };
-  }
-
-  // ── INIT — flow opened for first time ─────────────────────────
-  // Registration flow: start at WELCOME (navigate, no data_exchange)
-  // Login flow: start at MOBILE_INPUT (navigate, no data_exchange)
-  // INIT only fires for screens that use data_exchange on INIT.
-  // Our flows use navigate for the first screen so INIT won't hit
-  // but we handle it defensively.
-  if (action === 'INIT') {
-    // Return data for the first screen — both flows start with empty state
-    return {
-      screen: screen || 'MOBILE_INPUT',
-      data:   { error_message: '' },
-    };
-  }
-
-  // ── data_exchange ─────────────────────────────────────────────
   if (action === 'data_exchange') {
-    const currentScreen = data.screen || screen;
-
-    switch (currentScreen) {
-      // Registration flow: EPIC_ENTRY — validate voter ID
-      case 'EPIC_ENTRY':
-        return handleValidateEpic(body);
-
-      // Login flow: MOBILE_INPUT — send OTP
-      case 'MOBILE_INPUT':
-        return handleSendOtp(body);
-
-      // Login flow: OTP_VERIFY — verify OTP
-      case 'OTP_VERIFY':
-        return handleVerifyOtp(body);
-
+    const cur = data.screen || screen;
+    switch (cur) {
+      case 'EPIC_ENTRY':      return handleEpicEntry(body);
+      case 'CONFIRM_DETAILS': return handleConfirmDetails(body, flow_token);
+      case 'MOBILE_INPUT':    return handleSendOtp(body);
+      case 'OTP_VERIFY':      return handleVerifyOtp(body);
       default:
-        console.error('[Flow] Unknown data_exchange screen:', currentScreen);
-        return errorScreen(body, 'Unknown screen. Please restart.');
+        return { screen: 'EPIC_ENTRY', data: { error_message: 'Unknown screen.', show_error: true } };
     }
   }
 
-  console.error('[Flow] Unhandled action:', action, 'screen:', screen);
-  return errorScreen(body, 'Unexpected request. Please restart the flow.');
+  return { data: { status: 'active' } };
 }
 
-// ── Screen helpers ────────────────────────────────────────────────
+// ── Registration: Step 1 — validate EPIC ─────────────────────────
 
-function errorScreen(body, message) {
-  // Return user back to current screen with error message
-  const current = body?.data?.screen || body?.screen;
-  const safeScreen = ['MOBILE_INPUT', 'OTP_VERIFY', 'EPIC_ENTRY', 'CONFIRM_DETAILS'].includes(current)
-    ? current
-    : 'MOBILE_INPUT';
-  return {
-    screen: safeScreen,
-    data:   { error_message: message },
-  };
-}
-
-// ── Validate EPIC (Registration flow: EPIC_ENTRY) ─────────────────
-
-async function handleValidateEpic(body) {
-  const epic_no = ((body.data?.epic_no || body.data?.form?.epic_no) || '').trim().toUpperCase();
-  const mobile  = (body.data?.mobile  || '').trim();
-
+async function handleEpicEntry(body) {
+  const epic_no = ((body.data?.epic_no) || '').trim().toUpperCase();
   const { valid, value: epicNo } = validateEpic(epic_no);
+
   if (!valid) {
     return {
       screen: 'EPIC_ENTRY',
-      data: {
-        error_message: 'Invalid EPIC format. Use 3 letters + 7 digits (e.g. TNA1234567)',
-        show_error:    true,
-        mobile,
-      },
+      data: { error_message: 'Invalid format. Use 3 letters + 7 digits (e.g. TNA1234567)', show_error: true },
     };
   }
 
+  // Check if already registered
+  try {
+    const db = getDb();
+    const existing = await db.collection('generated_voters').findOne(
+      { EPIC_NO: epicNo }, { projection: { card_url: 1, VOTER_NAME: 1 } },
+    );
+    if (existing?.card_url) {
+      return {
+        screen: 'EPIC_ENTRY',
+        data: {
+          error_message: `${existing.VOTER_NAME || 'This EPIC'} is already registered. Your card was sent to this WhatsApp.`,
+          show_error: true,
+        },
+      };
+    }
+  } catch (e) { /* non-fatal */ }
+
+  // Lookup voter from DB1
   try {
     const voter = await findVoterByEpic(epicNo);
     if (!voter) {
       return {
         screen: 'EPIC_ENTRY',
-        data: {
-          error_message: 'Voter not found. Please check your EPIC Number.',
-          show_error:    true,
-          mobile,
-        },
+        data: { error_message: 'EPIC not found. Please check your Voter ID card and try again.', show_error: true },
       };
     }
 
     const voterName    = voter.VOTER_NAME
-      || `${voter.FM_NAME_EN  || ''} ${voter.LASTNAME_EN  || ''}`.trim()
-      || `${voter.FM_NAME_TAM || ''} ${voter.LASTNAME_TAM || ''}`.trim()
+      || `${voter.FM_NAME_EN || ''} ${voter.LASTNAME_EN || ''}`.trim()
       || 'Unknown';
     const assemblyName = voter.ASSEMBLY_NAME || voter.AC_NAME || '';
     const district     = voter.DISTRICT || voter.DISTRICT_NAME || '';
 
     return {
       screen: 'CONFIRM_DETAILS',
-      data: {
-        mobile,
-        epic_no:       epicNo,
-        voter_name:    voterName,
-        assembly_name: assemblyName,
-        district,
-      },
+      data: { epic_no: epicNo, voter_name: voterName, assembly_name: assemblyName, district },
     };
   } catch (err) {
     console.error('[Flow] EPIC lookup error:', err.message);
     return {
       screen: 'EPIC_ENTRY',
+      data: { error_message: 'Server error. Please try again.', show_error: true },
+    };
+  }
+}
+
+// ── Registration: Step 2 — confirm details, save pending ─────────
+// flow_token format: "registration_{WA_number}_{timestamp}"
+
+async function handleConfirmDetails(body, flowToken) {
+  const epic_no      = (body.data?.epic_no      || '').trim().toUpperCase();
+  const voter_name   = (body.data?.voter_name   || '').trim();
+  const assembly_name = (body.data?.assembly_name || '').trim();
+  const district     = (body.data?.district     || '').trim();
+
+  // Extract WA mobile from flow_token: "registration_918106811285_1234567890"
+  let waMobile = '';
+  const parts = (flowToken || '').split('_');
+  if (parts.length >= 2) {
+    const raw = parts[1];
+    // Strip country code 91 if 12 digits
+    waMobile = (raw.length === 12 && raw.startsWith('91')) ? raw.slice(2) : raw;
+  }
+
+  try {
+    const db = getDb();
+
+    // Save pending_registrations — webhook will pick this up when user sends photo
+    await db.collection('pending_registrations').updateOne(
+      { mobile: waMobile || epic_no }, // fallback key if no mobile parsed
+      {
+        $set: {
+          epic_no,
+          voter_name,
+          assembly_name,
+          district,
+          mobile:     waMobile,
+          wa_number:  parts[1] || '',
+          status:     'awaiting_photo',
+          updated_at: new Date(),
+        },
+        $setOnInsert: { created_at: new Date() },
+      },
+      { upsert: true },
+    );
+
+    console.log(`[Flow] Pending registration saved for ${waMobile || epic_no}`);
+
+    return {
+      screen: 'SUCCESS',
+      data: { epic_no, voter_name },
+    };
+  } catch (err) {
+    console.error('[Flow] handleConfirmDetails error:', err.message);
+    return {
+      screen: 'CONFIRM_DETAILS',
       data: {
-        error_message: 'Server error. Please try again.',
-        show_error:    true,
-        mobile,
+        epic_no, voter_name, assembly_name, district,
       },
     };
   }
 }
 
-// ── Send OTP (Login flow: MOBILE_INPUT) ───────────────────────────
+// ── Login: send OTP ───────────────────────────────────────────────
 
 async function handleSendOtp(body) {
-  const raw    = (body.data?.mobile || body.data?.form?.mobile || '').trim().replace(/\D/g, '');
+  const raw = (body.data?.mobile || '').trim().replace(/\D/g, '');
   const { valid, value: mobile } = validateMobile(raw);
-
   if (!valid) {
-    return {
-      screen: 'MOBILE_INPUT',
-      data:   { error_message: 'Enter a valid 10-digit mobile number.', show_error: true },
-    };
+    return { screen: 'MOBILE_INPUT', data: { error_message: 'Enter a valid 10-digit mobile number.', show_error: true } };
   }
 
   try {
     const db  = getDb();
-    const doc = await db.collection('otp_sessions').findOne(
-      { mobile },
-      { projection: { created_at: 1 } },
-    );
-
+    const doc = await db.collection('otp_sessions').findOne({ mobile }, { projection: { created_at: 1 } });
     if (doc?.created_at) {
       const elapsed = (Date.now() - new Date(doc.created_at).getTime()) / 1000;
       if (elapsed < 60) {
-        const wait = Math.ceil(60 - elapsed);
-        return {
-          screen: 'MOBILE_INPUT',
-          data:   { error_message: `Please wait ${wait}s before requesting another OTP.`, show_error: true },
-        };
+        return { screen: 'MOBILE_INPUT', data: { error_message: `Wait ${Math.ceil(60 - elapsed)}s before requesting another OTP.`, show_error: true } };
       }
     }
 
     const otp    = String(crypto.randomInt(100000, 1000000));
     const result = await sendOtp(mobile, otp);
-
     if (!result.success) {
-      return {
-        screen: 'MOBILE_INPUT',
-        data:   { error_message: 'Could not send OTP. Please try again.', show_error: true },
-      };
+      return { screen: 'MOBILE_INPUT', data: { error_message: 'Could not send OTP. Please try again.', show_error: true } };
     }
 
     const otpHash = crypto.createHash('sha256').update(`${otp}:${mobile}`).digest('hex');
@@ -370,44 +310,30 @@ async function handleSendOtp(body) {
       { upsert: true },
     );
 
-    return {
-      screen: 'OTP_VERIFY',
-      data:   { mobile, error_message: '', show_error: false },
-    };
+    return { screen: 'OTP_VERIFY', data: { mobile, error_message: '', show_error: false } };
   } catch (err) {
     console.error('[Flow] SendOTP error:', err.message);
-    return {
-      screen: 'MOBILE_INPUT',
-      data:   { error_message: 'Server error. Please try again.', show_error: true },
-    };
+    return { screen: 'MOBILE_INPUT', data: { error_message: 'Server error. Please try again.', show_error: true } };
   }
 }
 
-// ── Verify OTP (Login flow: OTP_VERIFY) ───────────────────────────
+// ── Login: verify OTP ─────────────────────────────────────────────
 
 async function handleVerifyOtp(body) {
   const mobile = (body.data?.mobile || '').trim();
-  const otp    = (body.data?.otp || body.data?.form?.otp || '').trim();
-
+  const otp    = (body.data?.otp    || '').trim();
   const { valid: vm, value: validMobile } = validateMobile(mobile);
   const { valid: vo, value: validOtp    } = validateOtp(otp);
 
   if (!vm || !vo) {
-    return {
-      screen: 'OTP_VERIFY',
-      data:   { mobile, error_message: 'Invalid mobile or OTP format.', show_error: true },
-    };
+    return { screen: 'OTP_VERIFY', data: { mobile, error_message: 'Invalid mobile or OTP.', show_error: true } };
   }
 
   try {
     const db  = getDb();
     const doc = await db.collection('otp_sessions').findOne({ mobile: validMobile });
-
     if (!doc || doc.purpose !== 'login') {
-      return {
-        screen: 'OTP_VERIFY',
-        data:   { mobile, error_message: 'OTP not found. Please request a new one.', show_error: true },
-      };
+      return { screen: 'OTP_VERIFY', data: { mobile, error_message: 'OTP not found. Request a new one.', show_error: true } };
     }
 
     const computed = crypto.createHash('sha256').update(`${validOtp}:${validMobile}`).digest('hex');
@@ -419,42 +345,19 @@ async function handleVerifyOtp(body) {
       );
     } catch { match = false; }
 
-    if (!match) {
-      return {
-        screen: 'OTP_VERIFY',
-        data:   { mobile, error_message: 'Incorrect OTP. Please try again.', show_error: true },
-      };
-    }
+    if (!match) return { screen: 'OTP_VERIFY', data: { mobile, error_message: 'Incorrect OTP. Try again.', show_error: true } };
 
     const elapsed = (Date.now() - new Date(doc.created_at).getTime()) / 1000;
-    if (elapsed > 300) {
-      return {
-        screen: 'OTP_VERIFY',
-        data:   { mobile, error_message: 'OTP expired. Go back and request a new one.', show_error: true },
-      };
-    }
+    if (elapsed > 300) return { screen: 'OTP_VERIFY', data: { mobile, error_message: 'OTP expired. Go back and request a new one.', show_error: true } };
 
-    // Invalidate OTP
     await db.collection('otp_sessions').deleteOne({ mobile: validMobile });
-
-    // Look up member info
     const stat   = await db.collection('generation_stats').findOne({ auth_mobile: validMobile }) || {};
     const genDoc = await db.collection('generated_voters').findOne({ MOBILE_NO: validMobile })   || {};
-    const epic   = stat.epic_no || genDoc.EPIC_NO || '';
 
-    return {
-      screen: 'SUCCESS',
-      data: {
-        mobile:  validMobile,
-        epic_no: epic,
-      },
-    };
+    return { screen: 'SUCCESS', data: { mobile: validMobile, epic_no: stat.epic_no || genDoc.EPIC_NO || '' } };
   } catch (err) {
     console.error('[Flow] VerifyOTP error:', err.message);
-    return {
-      screen: 'OTP_VERIFY',
-      data:   { mobile, error_message: 'Server error. Please try again.', show_error: true },
-    };
+    return { screen: 'OTP_VERIFY', data: { mobile, error_message: 'Server error. Please try again.', show_error: true } };
   }
 }
 

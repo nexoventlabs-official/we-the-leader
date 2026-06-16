@@ -493,6 +493,27 @@ router.post('/validate-epic', chatValidateEpicLimiter, async (req, res) => {
     const { valid, value: epicNo } = validateEpic(raw);
     if (!valid) return res.status(400).json({ success: false, message: epicNo });
 
+    // ── Duplicate check: already registered → return existing card ─
+    const db       = getDb();
+    const existing = await db.collection('generated_voters').findOne(
+      { EPIC_NO: epicNo },
+      { projection: { card_url: 1, back_url: 1, combined_url: 1, photo_url: 1, ptc_code: 1, VOTER_NAME: 1 } },
+    );
+    if (existing?.card_url) {
+      return res.status(409).json({
+        success:     false,
+        already_registered: true,
+        message:     'You are already registered. Here is your existing card.',
+        card_url:    existing.card_url,
+        back_url:    existing.back_url    || '',
+        combined_url: existing.combined_url || '',
+        photo_url:   existing.photo_url   || '',
+        ptc_code:    existing.ptc_code    || '',
+        voter_name:  existing.VOTER_NAME  || '',
+        epic_no:     epicNo,
+      });
+    }
+
     const doc = await findVoterByEpic(epicNo);
     if (!doc) {
       return res.status(404).json({ success: false, message: 'EPIC Number not found. Please check and try again.' });
@@ -529,6 +550,24 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
     }
 
     const db = getDb();
+
+    // ── Hard block: already registered ────────────────────────────
+    const existingCard = await db.collection('generated_voters').findOne(
+      { EPIC_NO: epicNo },
+      { projection: { card_url: 1, back_url: 1, ptc_code: 1, VOTER_NAME: 1 } },
+    );
+    if (existingCard?.card_url) {
+      return res.status(409).json({
+        success:            false,
+        already_registered: true,
+        message:            'This EPIC is already registered. Your existing card is shown below.',
+        card_url:           existingCard.card_url,
+        back_url:           existingCard.back_url   || '',
+        ptc_code:           existingCard.ptc_code   || '',
+        voter_name:         existingCard.VOTER_NAME || '',
+        epic_no:            epicNo,
+      });
+    }
 
     // EPIC lookup from DB1
     const rawVoter = await findVoterByEpic(epicNo);

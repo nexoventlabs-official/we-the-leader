@@ -338,6 +338,26 @@ export default function ChatbotPage() {
       const res = await chat.validateEpic(epic)
       await sleep(200)
       setIsTyping(false)
+
+      // ── Already registered: show existing card immediately ──────
+      if (res.already_registered || res.card_url) {
+        const card = {
+          epic_no:     res.epic_no     || epic,
+          voter_name:  res.voter_name  || '',
+          card_url:    res.card_url    || '',
+          back_url:    res.back_url    || '',
+          combined_url: res.combined_url || '',
+          photo_url:   res.photo_url   || '',
+          ptc_code:    res.ptc_code    || '',
+        }
+        cardRef.current = card
+        saveCache(card, {})
+        await botSay('✅ You are already a registered member! Here is your Digital Member ID Card:', 300)
+        addMsg('bot', 'generated_card', { card })
+        setChatState(S.DONE)
+        return
+      }
+
       const voter = res.voter || res.data || res
       if (!voter || (!voter.name && !voter.Name && !voter.voter_name)) {
         throw new Error('Voter data not found in response')
@@ -348,6 +368,25 @@ export default function ChatbotPage() {
       setChatState(S.CONFIRM)
     } catch (err) {
       setIsTyping(false)
+      // API returns 409 with already_registered — axios wraps it as error
+      const data = err
+      if (data?.already_registered || data?.card_url) {
+        const card = {
+          epic_no:     data.epic_no     || epic,
+          voter_name:  data.voter_name  || '',
+          card_url:    data.card_url    || '',
+          back_url:    data.back_url    || '',
+          combined_url: data.combined_url || '',
+          photo_url:   data.photo_url   || '',
+          ptc_code:    data.ptc_code    || '',
+        }
+        cardRef.current = card
+        saveCache(card, {})
+        await botSay('✅ You are already a registered member! Here is your Digital Member ID Card:', 300)
+        addMsg('bot', 'generated_card', { card })
+        setChatState(S.DONE)
+        return
+      }
       await botSay(`❌ ${err.message || 'EPIC not found. Please check and try again.'}`, 200)
     }
   }
