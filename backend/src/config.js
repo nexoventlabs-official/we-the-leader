@@ -45,10 +45,19 @@ const config = {
 
   // WhatsApp Cloud API
   whatsapp: {
-    verifyToken:   process.env.WHATSAPP_VERIFY_TOKEN   || '',
-    appSecret:     process.env.WHATSAPP_APP_SECRET      || '',
-    accessToken:   process.env.WHATSAPP_ACCESS_TOKEN    || '',
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+    verifyToken:    process.env.WHATSAPP_VERIFY_TOKEN    || '',
+    appId:          process.env.WHATSAPP_APP_ID           || '',
+    appSecret:      process.env.WHATSAPP_APP_SECRET       || '',
+    accessToken:    process.env.WHATSAPP_ACCESS_TOKEN     || '',
+    phoneNumberId:  process.env.WHATSAPP_PHONE_NUMBER_ID  || '',
+    wabaId:         process.env.WHATSAPP_WABA_ID          || '',
+    // RSA private key for decrypting WhatsApp Flow requests (optional)
+    // Set WHATSAPP_FLOW_PRIVATE_KEY in .env (newlines as \n)
+    flowPrivateKey: process.env.WHATSAPP_FLOW_PRIVATE_KEY || '',
+    flows: {
+      registrationId: process.env.WHATSAPP_FLOW_REGISTRATION_ID || '',
+      loginId:        process.env.WHATSAPP_FLOW_LOGIN_ID        || '',
+    },
   },
 
   baseUrl:       process.env.BASE_URL       || 'http://localhost:5000',

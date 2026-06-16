@@ -1,0 +1,206 @@
+{
+  "version": "6.2",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "WELCOME": ["EPIC_ENTRY"],
+    "EPIC_ENTRY": ["CONFIRM_DETAILS"],
+    "CONFIRM_DETAILS": ["SUCCESS"],
+    "SUCCESS": []
+  },
+  "screens": [
+    {
+      "id": "WELCOME",
+      "title": "WTL Member Card",
+      "terminal": false,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "We The Leaders"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Lead the Change"
+          },
+          {
+            "type": "TextBody",
+            "text": "Generate your free Digital Member ID Card. Enter your mobile number to get started."
+          },
+          {
+            "type": "TextInput",
+            "label": "Mobile Number",
+            "input-type": "phone",
+            "required": true,
+            "name": "mobile",
+            "helper-text": "Enter your 10-digit mobile number"
+          },
+          {
+            "type": "Footer",
+            "label": "Continue",
+            "on-click-action": {
+              "name": "navigate",
+              "next": {
+                "type": "screen",
+                "name": "EPIC_ENTRY"
+              },
+              "payload": {
+                "mobile": "${form.mobile}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "EPIC_ENTRY",
+      "title": "Voter ID Verification",
+      "terminal": false,
+      "data": {
+        "mobile": {
+          "type": "string",
+          "__example__": "9876543210"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Enter Your EPIC Number"
+          },
+          {
+            "type": "TextBody",
+            "text": "Your EPIC Number is printed on your Voter ID card.\nFormat: 3 letters + 7 digits\nExample: ABC1234567"
+          },
+          {
+            "type": "TextInput",
+            "label": "EPIC / Voter ID Number",
+            "input-type": "text",
+            "required": true,
+            "name": "epic_no",
+            "helper-text": "e.g. ABC1234567"
+          },
+          {
+            "type": "Footer",
+            "label": "Verify & Continue",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "mobile": "${data.mobile}",
+                "epic_no": "${form.epic_no}",
+                "action": "validate_epic"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CONFIRM_DETAILS",
+      "title": "Confirm Your Details",
+      "terminal": false,
+      "data": {
+        "mobile": {
+          "type": "string",
+          "__example__": "9876543210"
+        },
+        "epic_no": {
+          "type": "string",
+          "__example__": "ABC1234567"
+        },
+        "voter_name": {
+          "type": "string",
+          "__example__": "RAMU KUMAR"
+        },
+        "assembly_name": {
+          "type": "string",
+          "__example__": "CHENNAI CENTRAL"
+        },
+        "district": {
+          "type": "string",
+          "__example__": "CHENNAI"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Voter Details Found"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Please confirm your details below"
+          },
+          {
+            "type": "TextBody",
+            "text": "Name: ${data.voter_name}\nAssembly: ${data.assembly_name}\nDistrict: ${data.district}\nEPIC No: ${data.epic_no}"
+          },
+          {
+            "type": "Footer",
+            "label": "Confirm & Proceed",
+            "on-click-action": {
+              "name": "navigate",
+              "next": {
+                "type": "screen",
+                "name": "SUCCESS"
+              },
+              "payload": {
+                "mobile": "${data.mobile}",
+                "epic_no": "${data.epic_no}",
+                "voter_name": "${data.voter_name}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "SUCCESS",
+      "title": "Registration Started",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "mobile": {
+          "type": "string",
+          "__example__": "9876543210"
+        },
+        "epic_no": {
+          "type": "string",
+          "__example__": "ABC1234567"
+        },
+        "voter_name": {
+          "type": "string",
+          "__example__": "RAMU KUMAR"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Details Confirmed!"
+          },
+          {
+            "type": "TextBody",
+            "text": "Your voter details have been verified successfully.\n\nVisit the link below to upload your photo and generate your Digital Member ID Card:\n\nhttps://we-the-leader.vercel.app"
+          },
+          {
+            "type": "Footer",
+            "label": "Done",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "mobile": "${data.mobile}",
+                "epic_no": "${data.epic_no}",
+                "voter_name": "${data.voter_name}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

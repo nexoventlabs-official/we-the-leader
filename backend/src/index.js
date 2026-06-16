@@ -21,6 +21,7 @@ const chatRoutes    = require('./routes/chat');
 const adminRoutes   = require('./routes/admin');
 const publicRoutes  = require('./routes/public');
 const webhookRoutes = require('./routes/webhook');
+const flowRoutes    = require('./routes/flow');
 
 const app = express();
 
@@ -89,8 +90,13 @@ app.use(cors({
 
 // ────────────────────────────────────────────────────────────────
 // IMPORTANT: WhatsApp webhook route uses raw body for HMAC-SHA256.
-// Register it BEFORE express.json() so the raw body is preserved.
+// Register flow route BEFORE raw middleware — flow uses express.json().
 // ────────────────────────────────────────────────────────────────
+
+// WhatsApp Flow endpoint — uses express.json() (handled inside flow.js)
+app.use('/api/webhook/flow', flowRoutes);
+
+// WhatsApp message webhook — raw body required for HMAC-SHA256
 app.use('/api/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/webhook', webhookRoutes);
 
