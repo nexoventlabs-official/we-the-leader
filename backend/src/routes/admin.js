@@ -49,10 +49,18 @@ router.post('/api/login', adminLoginLimiter, async (req, res) => {
 
   if (username === config.admin.username && password === config.admin.password) {
     loginTracker.reset(ip);
-    req.session.adminLoggedIn  = true;
-    req.session.adminUsername  = username;
-    req.session.cookie.maxAge  = 86400 * 1000; // 1 day
-    return res.json({ success: true, message: 'Login successful.' });
+    req.session.adminLoggedIn = true;
+    req.session.adminUsername = username;
+    req.session.cookie.maxAge = 86400 * 1000;
+    // Explicitly save session before responding so the Set-Cookie header
+    // is guaranteed to be sent even if the store is async
+    return req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err.message);
+        return res.status(500).json({ success: false, message: 'Session error. Please try again.' });
+      }
+      return res.json({ success: true, message: 'Login successful.' });
+    });
   }
 
   loginTracker.recordAttempt(ip, username, false);

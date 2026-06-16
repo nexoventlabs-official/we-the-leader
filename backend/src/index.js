@@ -24,6 +24,10 @@ const webhookRoutes = require('./routes/webhook');
 
 const app = express();
 
+// ── Trust proxy (Render + Cloudflare sit in front) ────────────────
+// Required for secure cookies and correct req.ip behind a reverse proxy
+app.set('trust proxy', 1);
+
 // ── Warn if insecure cookie in non-production ─────────────────────
 if (config.nodeEnv !== 'production') {
   console.warn('⚠️  NODE_ENV is not production — secure cookies disabled, CSP relaxed');
