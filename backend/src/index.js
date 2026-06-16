@@ -75,6 +75,9 @@ const allowedOrigins = config.nodeEnv === 'development'
       ...(config.extraOrigins || []),                      // any extra origins from EXTRA_ORIGINS env
     ].filter(Boolean);
 
+// Meta webhook & flow endpoints are server-to-server — exempt from CORS
+const META_PATHS = ['/api/webhook', '/api/webhook/flow'];
+
 app.use(cors({
   origin: (origin, cb) => {
     // Allow same-origin (no Origin header) and server-to-server calls
@@ -87,6 +90,10 @@ app.use(cors({
   methods:        ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// Allow all origins for Meta server-to-server calls (webhook + flow endpoint)
+// These routes are protected by HMAC signature / token verification, not CORS
+app.use(META_PATHS, cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'] }));
 
 // ────────────────────────────────────────────────────────────────
 // Body-parsing order matters:
