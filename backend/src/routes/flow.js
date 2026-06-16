@@ -273,6 +273,7 @@ async function handleValidateEpic(body) {
       screen: 'EPIC_ENTRY',
       data: {
         error_message: 'Invalid EPIC format. Use 3 letters + 7 digits (e.g. TNA1234567)',
+        show_error:    true,
         mobile,
       },
     };
@@ -285,6 +286,7 @@ async function handleValidateEpic(body) {
         screen: 'EPIC_ENTRY',
         data: {
           error_message: 'Voter not found. Please check your EPIC Number.',
+          show_error:    true,
           mobile,
         },
       };
@@ -313,6 +315,7 @@ async function handleValidateEpic(body) {
       screen: 'EPIC_ENTRY',
       data: {
         error_message: 'Server error. Please try again.',
+        show_error:    true,
         mobile,
       },
     };
@@ -328,7 +331,7 @@ async function handleSendOtp(body) {
   if (!valid) {
     return {
       screen: 'MOBILE_INPUT',
-      data:   { error_message: 'Enter a valid 10-digit mobile number.' },
+      data:   { error_message: 'Enter a valid 10-digit mobile number.', show_error: true },
     };
   }
 
@@ -345,7 +348,7 @@ async function handleSendOtp(body) {
         const wait = Math.ceil(60 - elapsed);
         return {
           screen: 'MOBILE_INPUT',
-          data:   { error_message: `Please wait ${wait}s before requesting another OTP.` },
+          data:   { error_message: `Please wait ${wait}s before requesting another OTP.`, show_error: true },
         };
       }
     }
@@ -356,7 +359,7 @@ async function handleSendOtp(body) {
     if (!result.success) {
       return {
         screen: 'MOBILE_INPUT',
-        data:   { error_message: 'Could not send OTP. Please try again.' },
+        data:   { error_message: 'Could not send OTP. Please try again.', show_error: true },
       };
     }
 
@@ -369,13 +372,13 @@ async function handleSendOtp(body) {
 
     return {
       screen: 'OTP_VERIFY',
-      data:   { mobile, error_message: '' },
+      data:   { mobile, error_message: '', show_error: false },
     };
   } catch (err) {
     console.error('[Flow] SendOTP error:', err.message);
     return {
       screen: 'MOBILE_INPUT',
-      data:   { error_message: 'Server error. Please try again.' },
+      data:   { error_message: 'Server error. Please try again.', show_error: true },
     };
   }
 }
@@ -392,7 +395,7 @@ async function handleVerifyOtp(body) {
   if (!vm || !vo) {
     return {
       screen: 'OTP_VERIFY',
-      data:   { mobile, error_message: 'Invalid mobile or OTP format.' },
+      data:   { mobile, error_message: 'Invalid mobile or OTP format.', show_error: true },
     };
   }
 
@@ -403,7 +406,7 @@ async function handleVerifyOtp(body) {
     if (!doc || doc.purpose !== 'login') {
       return {
         screen: 'OTP_VERIFY',
-        data:   { mobile, error_message: 'OTP not found. Please request a new one.' },
+        data:   { mobile, error_message: 'OTP not found. Please request a new one.', show_error: true },
       };
     }
 
@@ -419,7 +422,7 @@ async function handleVerifyOtp(body) {
     if (!match) {
       return {
         screen: 'OTP_VERIFY',
-        data:   { mobile, error_message: 'Incorrect OTP. Please try again.' },
+        data:   { mobile, error_message: 'Incorrect OTP. Please try again.', show_error: true },
       };
     }
 
@@ -427,7 +430,7 @@ async function handleVerifyOtp(body) {
     if (elapsed > 300) {
       return {
         screen: 'OTP_VERIFY',
-        data:   { mobile, error_message: 'OTP expired. Go back and request a new one.' },
+        data:   { mobile, error_message: 'OTP expired. Go back and request a new one.', show_error: true },
       };
     }
 
@@ -450,7 +453,7 @@ async function handleVerifyOtp(body) {
     console.error('[Flow] VerifyOTP error:', err.message);
     return {
       screen: 'OTP_VERIFY',
-      data:   { mobile, error_message: 'Server error. Please try again.' },
+      data:   { mobile, error_message: 'Server error. Please try again.', show_error: true },
     };
   }
 }

@@ -15,6 +15,10 @@
         "error_message": {
           "type": "string",
           "__example__": ""
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
         }
       },
       "layout": {
@@ -39,7 +43,7 @@
           {
             "type": "TextBody",
             "text": "${data.error_message}",
-            "visible": "${data.error_message != \"\"}"
+            "visible": "${data.show_error}"
           },
           {
             "type": "Footer",
@@ -67,6 +71,10 @@
         "error_message": {
           "type": "string",
           "__example__": ""
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
         }
       },
       "layout": {
@@ -91,7 +99,7 @@
           {
             "type": "TextBody",
             "text": "${data.error_message}",
-            "visible": "${data.error_message != \"\"}"
+            "visible": "${data.show_error}"
           },
           {
             "type": "Footer",
