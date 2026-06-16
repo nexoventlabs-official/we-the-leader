@@ -52,7 +52,8 @@ export const CardPreviewIframe = React.forwardRef(({ cardData, width = 340 }, re
       const photoImg = doc.getElementById('member-photo-img')
       const qrImg = doc.getElementById('qr-img')
 
-      const name = String(cardData.name || cardData.voter_name || cardData.VOTER_NAME || '').toUpperCase()
+      const name = String(cardData.name || cardData.voter_name || cardData.VOTER_NAME || '')
+                    .replace(/-/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase()
       const epic = String(cardData.epic_no || cardData.EPIC_NO || '').toUpperCase()
       const assembly = String(cardData.assembly_name || cardData.assembly || cardData.ASSEMBLY_NAME || '').toUpperCase()
       const booth = String(cardData.part_no || cardData.booth_no || cardData.PART_NO || '')
