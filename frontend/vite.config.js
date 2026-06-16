@@ -11,7 +11,9 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: process.env.VERCEL ? 'dist' : '../backend/public',
+    // Always output to dist — Vercel picks this up via outputDirectory in vercel.json.
+    // For local backend-served builds, copy dist/ to backend/public/ manually.
+    outDir: 'dist',
     emptyOutDir: true,
   }
 })

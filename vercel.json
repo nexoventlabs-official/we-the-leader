@@ -1,5 +1,8 @@
 {
-  "cleanUrls": true,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "echo 'skip root install'",
+  "framework": null,
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -10,7 +13,7 @@
       "destination": "https://we-the-leader.onrender.com/admin/api/:path*"
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
