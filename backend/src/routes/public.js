@@ -8,32 +8,68 @@ const { getDb, getVoterDb, findVoterByEpic } = require('../db');
 const { publicVerifyLimiter } = require('../middleware/rateLimiter');
 
 // ── Root route — returns API status ────────────────────────────────
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  let dbStatus = 'unknown';
+  let voterDbStatus = 'unknown';
+  try {
+    const db = getDb();
+    await db.command({ ping: 1 });
+    dbStatus = 'connected';
+  } catch {
+    dbStatus = 'disconnected';
+  }
+  try {
+    const vdb = getVoterDb();
+    await vdb.command({ ping: 1 });
+    voterDbStatus = 'connected';
+  } catch {
+    voterDbStatus = 'disconnected';
+  }
+
   res.json({
     success:   true,
-    status:    'active',
-    service:   'We The Leaders API Server',
+    service:   'We The Leaders — API Server',
     tagline:   'Lead the Change',
+    version:   '1.0.0',
     timestamp: new Date().toISOString(),
+    status: {
+      api:      'online',
+      app_db:   dbStatus,
+      voter_db: voterDbStatus,
+    },
     endpoints: {
-      health:  '/health',
-      cronjob: '/cronjob',
-      verify:  '/api/verify/:epicNo',
-      card:    '/api/card/:epicNo',
-      whatsapp: '/api/webhook'
-    }
+      health:          'GET  /health',
+      verify_voter:    'GET  /api/verify/:epicNo',
+      card_data:       'GET  /api/card/:epicNo',
+      send_otp:        'POST /api/send-otp',
+      verify_otp:      'POST /api/verify-otp',
+      generate_card:   'POST /api/generate-card',
+      admin_login:     'POST /admin/api/login',
+      admin_stats:     'GET  /admin/api/stats',
+      webhook:         'POST /api/webhook',
+    },
   });
 });
 
 // ── Health check ─────────────────────────────────────────────────
-router.get('/health', (req, res) => {
-  res.json({
-    success:   true,
-    status:    'healthy',
+router.get('/health', async (req, res) => {
+  let dbStatus = 'unknown';
+  let voterDbStatus = 'unknown';
+  try { const db = getDb(); await db.command({ ping: 1 }); dbStatus = 'connected'; } catch { dbStatus = 'disconnected'; }
+  try { const vdb = getVoterDb(); await vdb.command({ ping: 1 }); voterDbStatus = 'connected'; } catch { voterDbStatus = 'disconnected'; }
+
+  const healthy = dbStatus === 'connected';
+  res.status(healthy ? 200 : 503).json({
+    success:   healthy,
+    status:    healthy ? 'healthy' : 'degraded',
     service:   'We The Leaders API',
-    tagline:   'Lead the Change',
     timestamp: new Date().toISOString(),
     env:       config.nodeEnv,
+    checks: {
+      api:      'ok',
+      app_db:   dbStatus,
+      voter_db: voterDbStatus,
+    },
   });
 });
 

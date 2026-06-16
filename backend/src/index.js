@@ -116,12 +116,9 @@ app.use(session({
 }));
 
 // ── Static files ──────────────────────────────────────────────────
-const frontendDist = path.join(__dirname, '../public');
-const staticDir    = path.join(__dirname, '../../../static');
-
-if (require('fs').existsSync(frontendDist) && config.nodeEnv === 'production') {
-  app.use(express.static(frontendDist, { maxAge: '1y', etag: true }));
-}
+// NOTE: Frontend is deployed separately on Vercel.
+// The backend only serves assets from /static (e.g. banner images for OG tags).
+const staticDir = path.join(__dirname, '../../../static');
 if (require('fs').existsSync(staticDir)) {
   app.use('/static', express.static(staticDir, { maxAge: '7d' }));
 }
@@ -130,17 +127,6 @@ if (require('fs').existsSync(staticDir)) {
 app.use('/api',   chatRoutes);
 app.use('/admin', adminRoutes);
 app.use('/',      publicRoutes);
-
-// ── SPA fallback (production) ─────────────────────────────────────
-if (config.nodeEnv === 'production' && require('fs').existsSync(frontendDist)) {
-  const indexHtml = path.join(frontendDist, 'index.html');
-  app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/admin/api/')) {
-      return res.status(404).json({ success: false, message: 'Not found' });
-    }
-    res.sendFile(indexHtml);
-  });
-}
 
 // ── 404 fallback ─────────────────────────────────────────────────
 app.use((req, res) => {
