@@ -12,6 +12,7 @@ const path   = require('path');
 const fs     = require('fs');
 const { pathToFileURL } = require('url');
 const puppeteer = require('puppeteer');
+const QRCode    = require('qrcode');
 const sharp = require('sharp');
 
 // ── Asset paths ─────────────────────────────────────────────────
@@ -115,6 +116,16 @@ async function generateCard(voter, photoBuffer = null) {
   const ptcCode  = clean(voter.ptc_code || '');
   const memberId = ptcCode || `WTL-${epicNo.slice(-6)}`;
 
+  // Generate QR code pointing to the verification URL for this EPIC
+  const baseUrl  = process.env.BASE_URL || 'https://we-the-leader.onrender.com';
+  const verifyUrl = `${baseUrl}/verify/${epicNo}`;
+  const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+    errorCorrectionLevel: 'M',
+    width: 200,
+    margin: 1,
+    color: { dark: '#1a1a1a', light: '#f9f8f6' },
+  });
+
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
@@ -127,7 +138,7 @@ async function generateCard(voter, photoBuffer = null) {
       ? `data:${inferImageMimeType(photoBuffer)};base64,${photoBuffer.toString('base64')}`
       : null;
 
-    await page.evaluate(async ({ photoDataUrl, name, epicNo, assembly, booth, district, memberId }) => {
+    await page.evaluate(async ({ photoDataUrl, name, epicNo, assembly, booth, district, memberId, qrDataUrl }) => {
       const setText = (id, value) => {
         const el = document.getElementById(id);
         if (el) el.textContent = value;
@@ -140,6 +151,17 @@ async function generateCard(voter, photoBuffer = null) {
       setText('v-dist', district);
       setText('v-mid', memberId);
       setText('v-mid-big', memberId);
+
+      // Update QR code image
+      const qrImg = document.getElementById('qr-img');
+      if (qrImg && qrDataUrl) {
+        qrImg.src = qrDataUrl;
+        await new Promise((resolve) => {
+          if (qrImg.complete && qrImg.naturalWidth !== 0) return resolve();
+          qrImg.onload  = () => resolve();
+          qrImg.onerror = () => resolve();
+        });
+      }
 
       const photoImg = document.getElementById('member-photo-img');
       const svg = document.querySelector('#photo-box svg');
@@ -172,7 +194,7 @@ async function generateCard(voter, photoBuffer = null) {
       if (document.fonts && document.fonts.ready) {
         await document.fonts.ready;
       }
-    }, { photoDataUrl, name, epicNo, assembly, booth, district, memberId });
+    }, { photoDataUrl, name, epicNo, assembly, booth, district, memberId, qrDataUrl });
 
     const cardHandle = await page.$('#card');
     if (!cardHandle) {
