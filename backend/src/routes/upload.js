@@ -94,8 +94,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* Step 2 */
 #step-crop{display:none;width:100%;max-width:420px}
 .crop-hint{font-size:.85rem;color:#888;text-align:center;margin-bottom:10px}
-.crop-wrap{width:100%;background:#000;border-radius:14px;overflow:hidden}
-.crop-wrap img{display:block;max-width:100%;max-height:60vh}
+.crop-wrap{width:100%;background:#000;border-radius:14px;overflow:hidden;position:relative;min-height:300px;display:flex;align-items:center;justify-content:center}
+.crop-wrap img{display:block;max-width:100%;max-height:60vh;object-fit:contain}
 .crop-actions{display:flex;gap:10px;margin-top:14px}
 .btn-retake{flex:1;padding:14px;border:2px solid #444;background:transparent;color:#aaa;border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer}
 .btn-retake:active{background:#1a1a1a}
@@ -192,8 +192,60 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script>
+// Fallback: ensure Cropper loads with timeout
+let cropperCheckCount = 0;
+const cropperCheck = setInterval(() => {
+  cropperCheckCount++;
+  if (typeof Cropper !== 'undefined') {
+    clearInterval(cropperCheck);
+  } else if (cropperCheckCount > 20) {
+    clearInterval(cropperCheck);
+    // Load from alternative CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js';
+    document.head.appendChild(script);
+  }
+}, 100);
+</script>
+<script>
 const TOKEN = ${JSON.stringify(TOKEN)};
 let cropper = null;
+
+function initCropper(img) {
+  try {
+    if (!window.Cropper) {
+      showError('Image cropper library not loaded. Please refresh and try again.');
+      return false;
+    }
+    
+    // Ensure image is fully loaded and rendered
+    if (!img.complete || img.naturalWidth === 0) {
+      setTimeout(() => initCropper(img), 100);
+      return;
+    }
+
+    cropper = new Cropper(img, {
+      aspectRatio:      3 / 4,
+      viewMode:         1,
+      dragMode:         'move',
+      autoCropArea:     0.85,
+      responsive:       true,
+      restore:          false,
+      guides:           true,
+      center:           true,
+      highlight:        false,
+      cropBoxMovable:   true,
+      cropBoxResizable: true,
+      toggleDragModeOnDblclick: false,
+      background:       false,
+    });
+    return true;
+  } catch(err) {
+    console.error('Cropper init error:', err);
+    showError('Could not load image. Please try a different photo.');
+    return false;
+  }
+}
 
 function onFileSelected(file) {
   if (!file || !file.type.startsWith('image/')) return;
@@ -204,35 +256,32 @@ function onFileSelected(file) {
     // Destroy previous cropper if any
     if (cropper) { try { cropper.destroy(); } catch(_){} cropper = null; }
     img.src = '';
+    img.onerror = null;
+    img.onload = null;
 
     show('step-crop');
 
-    // Set src and init cropper after paint
-    requestAnimationFrame(function() {
-      img.onload = function() {
-        img.onload = null;
-        try {
-          cropper = new Cropper(img, {
-            aspectRatio:      3 / 4,
-            viewMode:         1,
-            dragMode:         'move',
-            autoCropArea:     0.85,
-            responsive:       true,
-            restore:          false,
-            guides:           true,
-            center:           true,
-            highlight:        false,
-            cropBoxMovable:   true,
-            cropBoxResizable: true,
-            toggleDragModeOnDblclick: false,
-            background:       false,
-          });
-        } catch(err) {
-          showError('Could not load image. Please try a different photo.');
-        }
-      };
-      img.src = e.target.result;
-    });
+    // Set up error handler before src
+    img.onerror = function() {
+      showError('Failed to load image. Please try a different photo.');
+    };
+
+    // Set up load handler
+    img.onload = function() {
+      img.onload = null;
+      img.onerror = null;
+      initCropper(img);
+    };
+
+    // Set src to trigger load
+    img.src = e.target.result;
+
+    // Fallback: if onload doesn't fire within 2 seconds, try anyway
+    setTimeout(function() {
+      if (img.src === e.target.result && !cropper && img.complete && img.naturalWidth > 0) {
+        initCropper(img);
+      }
+    }, 2000);
   };
   reader.onerror = function() { showError('Could not read image file.'); };
   reader.readAsDataURL(file);
@@ -273,22 +322,34 @@ async function submitPhoto() {
     const canvas = cropper.getCroppedCanvas({ width: 600, height: 800, imageSmoothingQuality: 'high' });
     if (!canvas) throw new Error('Crop failed. Please retake the photo.');
 
-    setProgress('Uploading…');
+    setProgress('Processing image…');
 
     const blob = await new Promise(function(resolve, reject) {
-      canvas.toBlob(function(b) {
-        if (b) resolve(b); else reject(new Error('Could not process image.'));
-      }, 'image/jpeg', 0.92);
+      try {
+        canvas.toBlob(function(b) {
+          if (b && b.size > 0) {
+            resolve(b);
+          } else {
+            reject(new Error('Image processing failed — output is empty.'));
+          }
+        }, 'image/jpeg', 0.92);
+      } catch(e) {
+        reject(new Error('Could not convert image: ' + e.message));
+      }
     });
 
-    setProgress('Generating your ID card…');
+    setProgress('Uploading…');
 
     const form = new FormData();
     form.append('photo', blob, 'photo.jpg');
 
     const resp = await fetch('/upload/' + TOKEN, { method: 'POST', body: form });
-    const text = await resp.text();
+    
+    if (!resp.ok) {
+      throw new Error('Server error: ' + resp.status);
+    }
 
+    const text = await resp.text();
     let data;
     try { data = JSON.parse(text); } catch(_) { throw new Error('Server error: ' + text.slice(0, 80)); }
     if (!data.success) throw new Error(data.message || 'Upload failed');
@@ -297,6 +358,7 @@ async function submitPhoto() {
     document.getElementById('success-box').style.display  = 'block';
 
   } catch(err) {
+    console.error('Photo submission error:', err);
     showError(err.message || 'Upload failed. Please try again.');
     btn.disabled = false;
   }
