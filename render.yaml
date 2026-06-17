@@ -4,12 +4,14 @@ services:
     env: node
     region: oregon
     plan: starter
-    buildCommand: cd backend && npm install
+    buildCommand: cd backend && npm install && npx puppeteer browsers install chrome
     startCommand: cd backend && node src/index.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
 
       # ── Secrets — set these as Render Secret environment variables ──
       # Never commit actual values. Set via Render dashboard → Environment.

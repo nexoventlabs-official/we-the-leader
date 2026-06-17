@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "postinstall": "node -e \"const { execSync } = require('child_process'); try { execSync('npx puppeteer browsers install chrome', { stdio: 'inherit' }); } catch(e) { console.warn('Puppeteer Chrome install failed (non-fatal):', e.message); }\"",
     "flow:status": "node scripts/check-flow-status.js",
     "flow:publish": "node scripts/publish-flows.js",
     "flow:upload-key": "node scripts/upload-public-key.js",

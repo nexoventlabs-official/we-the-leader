@@ -24,11 +24,54 @@ function assetPath(name) {
 
 // ── Browser helper ────────────────────────────────────────────────
 let _browser = null;
+
+async function getChromePath() {
+  // 1. Explicit env override
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+
+  // 2. Puppeteer's own installed Chrome
+  try {
+    const { executablePath } = require('puppeteer');
+    const p = executablePath();
+    if (p && require('fs').existsSync(p)) return p;
+  } catch (_) {}
+
+  // 3. Common system Chrome paths (Linux / Render)
+  const candidates = [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+  ];
+  for (const c of candidates) {
+    if (require('fs').existsSync(c)) return c;
+  }
+
+  return null; // let Puppeteer try its default
+}
+
 async function getBrowser() {
-  if (_browser) return _browser;
+  if (_browser && _browser.connected) return _browser;
+
+  const executablePath = await getChromePath();
+  console.log(`[Card] Launching browser${executablePath ? ` (${executablePath})` : ' (puppeteer default)'}`);
+
   _browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    headless: 'new',
+    executablePath: executablePath || undefined,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+    ],
   });
+
+  _browser.on('disconnected', () => { _browser = null; });
   return _browser;
 }
 
