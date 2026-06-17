@@ -214,14 +214,16 @@ router.post('/verify-otp', chatVerifyOtpLimiter, async (req, res) => {
     if ((stat && stat.card_url) || (genDoc && genDoc.card_url)) {
       const s = stat || {};
       const g = genDoc || {};
-      const name = `${g.FM_NAME_EN || ''} ${g.LASTNAME_EN || ''}`.trim();
+      const name = (g.VOTER_NAME || `${g.FM_NAME_EN || ''} ${g.LASTNAME_EN || ''}`.trim() || '').trim();
       return res.json({
         success:    true,
         has_card:   true,
-        epic_no:    s.epic_no || g.EPIC_NO || '',
-        card_url:   s.card_url || g.card_url || '',
+        epic_no:    s.epic_no  || g.EPIC_NO   || '',
+        card_url:   s.card_url || g.card_url  || '',
+        back_url:   s.back_url || g.back_url  || '',
         voter_name: name,
         photo_url:  g.photo_url || '',
+        ptc_code:   g.ptc_code  || '',
       });
     }
 
@@ -240,11 +242,34 @@ router.post('/check-mobile', async (req, res) => {
     const { valid, value: mobile } = validateMobile((req.body.mobile || '').trim());
     if (!valid) return res.status(400).json({ success: false, message: 'Invalid mobile number' });
 
-    const db     = getDb();
-    const stat   = await db.collection('generation_stats').findOne({ auth_mobile: mobile });
-    const genDoc = await db.collection('generated_voters').findOne(
+    const db   = getDb();
+    const stat = await db.collection('generation_stats').findOne({ auth_mobile: mobile });
+
+    // Primary lookup: by MOBILE_NO (web registrations)
+    let genDoc = await db.collection('generated_voters').findOne(
       { MOBILE_NO: mobile }, { sort: { generated_at: -1 } }
     );
+
+    // Fallback: WhatsApp registrations may have card but MOBILE_NO not indexed by web
+    // Check pending_registrations for the EPIC, then look up generated_voters by EPIC
+    if (!genDoc || !genDoc.card_url) {
+      const pending = await db.collection('pending_registrations').findOne(
+        { mobile }, { projection: { epic_no: 1, status: 1 } }
+      );
+      if (pending?.epic_no) {
+        const byEpic = await db.collection('generated_voters').findOne(
+          { EPIC_NO: pending.epic_no }
+        );
+        if (byEpic?.card_url) {
+          genDoc = byEpic;
+          // Backfill MOBILE_NO so future lookups are instant
+          db.collection('generated_voters').updateOne(
+            { EPIC_NO: pending.epic_no },
+            { $set: { MOBILE_NO: mobile } }
+          ).catch(() => {});
+        }
+      }
+    }
 
     const hasCard = Boolean((stat && stat.card_url) || (genDoc && genDoc.card_url));
 
@@ -255,11 +280,14 @@ router.post('/check-mobile', async (req, res) => {
       const result = { success: true, has_card: true, has_pin: hasPin };
 
       if (!hasPin) {
-        const name = `${g.FM_NAME_EN || ''} ${g.LASTNAME_EN || ''}`.trim();
-        result.epic_no    = s.epic_no || g.EPIC_NO || '';
-        result.card_url   = s.card_url || g.card_url || '';
+        // Support both web-stored (FM_NAME_EN/LASTNAME_EN) and WhatsApp-stored (VOTER_NAME) name fields
+        const name = (g.VOTER_NAME || `${g.FM_NAME_EN || ''} ${g.LASTNAME_EN || ''}`.trim() || '').trim();
+        result.epic_no    = s.epic_no  || g.EPIC_NO   || '';
+        result.card_url   = s.card_url || g.card_url  || '';
+        result.back_url   = s.back_url || g.back_url  || '';
         result.voter_name = name;
         result.photo_url  = g.photo_url || '';
+        result.ptc_code   = g.ptc_code  || '';
       }
       return res.json(result);
     }
