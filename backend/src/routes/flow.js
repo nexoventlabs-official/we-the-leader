@@ -185,7 +185,45 @@ async function buildResponse(body) {
 
   if (action === 'ping')  return { data: { status: 'active' } };
   if (data?.error)        return { data: { acknowledged: true } };
-  if (action === 'INIT')  return { screen: screen || 'EPIC_ENTRY', data: { error_message: '', show_error: false } };
+
+  // On INIT — check if this user is already registered via flow_token mobile
+  if (action === 'INIT') {
+    // flow_token format: "registration_{waNumber}_{timestamp}"
+    const parts = (flow_token || '').split('_');
+    if (parts[0] === 'registration' && parts[1]) {
+      const raw      = parts[1];
+      const mobile   = (raw.length === 12 && raw.startsWith('91')) ? raw.slice(2) : raw;
+      try {
+        const db = getDb();
+        // Check by mobile
+        const genByMobile = await db.collection('generated_voters').findOne(
+          { MOBILE_NO: mobile }, { projection: { card_url: 1, VOTER_NAME: 1 } }
+        );
+        // Check by EPIC from pending
+        let genDoc = genByMobile;
+        if (!genDoc?.card_url) {
+          const pending = await db.collection('pending_registrations').findOne(
+            { mobile }, { projection: { epic_no: 1, status: 1 } }
+          );
+          if (pending?.epic_no) {
+            genDoc = await db.collection('generated_voters').findOne(
+              { EPIC_NO: pending.epic_no }, { projection: { card_url: 1, VOTER_NAME: 1 } }
+            );
+          }
+        }
+        if (genDoc?.card_url) {
+          // Already registered — show ALREADY_DONE terminal screen
+          return {
+            screen: 'ALREADY_DONE',
+            data: {
+              voter_name: genDoc.VOTER_NAME || 'Member',
+            },
+          };
+        }
+      } catch (_) {}
+    }
+    return { screen: screen || 'EPIC_ENTRY', data: { error_message: '', show_error: false } };
+  }
 
   if (action === 'data_exchange') {
     const cur = data.screen || screen;

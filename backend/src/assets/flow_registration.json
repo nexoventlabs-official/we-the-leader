@@ -2,8 +2,9 @@
   "version": "6.2",
   "data_api_version": "3.0",
   "routing_model": {
-    "EPIC_ENTRY":      ["CONFIRM_DETAILS"],
+    "EPIC_ENTRY":      ["CONFIRM_DETAILS", "ALREADY_DONE"],
     "CONFIRM_DETAILS": ["SUCCESS"],
+    "ALREADY_DONE":    [],
     "SUCCESS":         []
   },
   "screens": [
@@ -12,26 +13,14 @@
       "title": "WTL Member Registration",
       "terminal": false,
       "data": {
-        "error_message": {
-          "type": "string",
-          "__example__": ""
-        },
-        "show_error": {
-          "type": "boolean",
-          "__example__": false
-        }
+        "error_message": { "type": "string",  "__example__": "" },
+        "show_error":    { "type": "boolean", "__example__": false }
       },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
-          {
-            "type": "TextHeading",
-            "text": "We The Leaders"
-          },
-          {
-            "type": "TextSubheading",
-            "text": "Digital Member ID Card"
-          },
+          { "type": "TextHeading",    "text": "We The Leaders" },
+          { "type": "TextSubheading", "text": "Digital Member ID Card" },
           {
             "type": "TextBody",
             "text": "Enter your EPIC Number (Voter ID) to register.\nFormat: 3 letters + 7 digits\nExample: TNA1234567"
@@ -54,10 +43,7 @@
             "label": "Verify EPIC",
             "on-click-action": {
               "name": "data_exchange",
-              "payload": {
-                "screen": "EPIC_ENTRY",
-                "epic_no": "${form.epic_no}"
-              }
+              "payload": { "screen": "EPIC_ENTRY", "epic_no": "${form.epic_no}" }
             }
           }
         ]
@@ -68,79 +54,62 @@
       "title": "Confirm Your Details",
       "terminal": false,
       "data": {
-        "epic_no": {
-          "type": "string",
-          "__example__": "TNA1234567"
-        },
-        "voter_name": {
-          "type": "string",
-          "__example__": "RAMU KUMAR"
-        },
-        "assembly_name": {
-          "type": "string",
-          "__example__": "CHENNAI CENTRAL"
-        },
-        "district": {
-          "type": "string",
-          "__example__": "CHENNAI"
-        }
+        "epic_no":       { "type": "string", "__example__": "TNA1234567" },
+        "voter_name":    { "type": "string", "__example__": "RAMU KUMAR" },
+        "assembly_name": { "type": "string", "__example__": "CHENNAI CENTRAL" },
+        "district":      { "type": "string", "__example__": "CHENNAI" }
       },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
-          {
-            "type": "TextHeading",
-            "text": "Voter Details Found ✅"
-          },
-          {
-            "type": "TextSubheading",
-            "text": "Please confirm your details"
-          },
-          {
-            "type": "TextBody",
-            "text": "👤 Name"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.voter_name}"
-          },
-          {
-            "type": "TextBody",
-            "text": "🏛️ Assembly"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.assembly_name}"
-          },
-          {
-            "type": "TextBody",
-            "text": "📍 District"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.district}"
-          },
-          {
-            "type": "TextBody",
-            "text": "🗳️ EPIC No"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.epic_no}"
-          },
+          { "type": "TextHeading",    "text": "Voter Details Found ✅" },
+          { "type": "TextSubheading", "text": "Please confirm your details" },
+          { "type": "TextBody", "text": "👤 Name" },
+          { "type": "TextBody", "text": "${data.voter_name}" },
+          { "type": "TextBody", "text": "🏛️ Assembly" },
+          { "type": "TextBody", "text": "${data.assembly_name}" },
+          { "type": "TextBody", "text": "📍 District" },
+          { "type": "TextBody", "text": "${data.district}" },
+          { "type": "TextBody", "text": "🗳️ EPIC No" },
+          { "type": "TextBody", "text": "${data.epic_no}" },
           {
             "type": "Footer",
             "label": "Confirm & Continue",
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
-                "screen": "CONFIRM_DETAILS",
-                "epic_no":      "${data.epic_no}",
-                "voter_name":   "${data.voter_name}",
-                "assembly_name":"${data.assembly_name}",
-                "district":     "${data.district}"
+                "screen":        "CONFIRM_DETAILS",
+                "epic_no":       "${data.epic_no}",
+                "voter_name":    "${data.voter_name}",
+                "assembly_name": "${data.assembly_name}",
+                "district":      "${data.district}"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ALREADY_DONE",
+      "title": "Already Registered",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "voter_name": { "type": "string", "__example__": "RAMU KUMAR" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          { "type": "TextHeading",    "text": "You're Already Registered! 🎉" },
+          { "type": "TextSubheading", "text": "${data.voter_name}" },
+          {
+            "type": "TextBody",
+            "text": "Your Digital Member ID Card has already been generated.\n\nSend *\"hi\"* in this chat to receive your card instantly."
+          },
+          {
+            "type": "Footer",
+            "label": "Close",
+            "on-click-action": { "name": "complete", "payload": {} }
           }
         ]
       }
@@ -151,22 +120,13 @@
       "terminal": true,
       "success": true,
       "data": {
-        "epic_no": {
-          "type": "string",
-          "__example__": "TNA1234567"
-        },
-        "voter_name": {
-          "type": "string",
-          "__example__": "RAMU KUMAR"
-        }
+        "epic_no":    { "type": "string", "__example__": "TNA1234567" },
+        "voter_name": { "type": "string", "__example__": "RAMU KUMAR" }
       },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
-          {
-            "type": "TextHeading",
-            "text": "One Last Step! 📸"
-          },
+          { "type": "TextHeading", "text": "One Last Step! 📸" },
           {
             "type": "TextBody",
             "text": "Your voter details have been verified.\n\nTo generate your Digital Member ID Card, please send your *passport-size photo* in this WhatsApp chat.\n\n📌 Tips for a good photo:\n• Clear face, good lighting\n• Plain background preferred\n• No sunglasses"
@@ -176,10 +136,7 @@
             "label": "OK, I will send my photo",
             "on-click-action": {
               "name": "complete",
-              "payload": {
-                "epic_no":    "${data.epic_no}",
-                "voter_name": "${data.voter_name}"
-              }
+              "payload": { "epic_no": "${data.epic_no}", "voter_name": "${data.voter_name}" }
             }
           }
         ]
