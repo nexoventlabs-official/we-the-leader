@@ -190,5 +190,52 @@ async function sendFlowMessage(to, flowType) {
   }
 }
 
-module.exports = { sendTextMessage, sendReplyButtons, sendImageMessage, sendFlowMessage };
+// ── CTA URL button message ────────────────────────────────────────
+/**
+ * Sends an interactive message with a single "Call To Action" URL button.
+ * Opens the URL inside WhatsApp's in-app browser when tapped.
+ *
+ * @param {string} to         — recipient WA number with country code
+ * @param {string} headerText — bold header line
+ * @param {string} bodyText   — main message body
+ * @param {string} footerText — small footer text
+ * @param {string} btnLabel   — button label (max 20 chars)
+ * @param {string} url        — URL to open (must be HTTPS)
+ */
+async function sendCtaUrlMessage(to, headerText, bodyText, footerText, btnLabel, url) {
+  if (!checkConfig()) return { success: false, error: 'WhatsApp not configured' };
+  try {
+    const { data } = await axios.post(
+      `${BASE}/${phoneId()}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        recipient_type:    'individual',
+        to,
+        type: 'interactive',
+        interactive: {
+          type: 'cta_url',
+          header: { type: 'text', text: headerText },
+          body:   { text: bodyText },
+          footer: { text: footerText },
+          action: {
+            name: 'cta_url',
+            parameters: {
+              display_text: btnLabel,
+              url,
+            },
+          },
+        },
+      },
+      { headers: authHeaders() },
+    );
+    console.log(`[WA] CTA URL sent to ${to}:`, data?.messages?.[0]?.id);
+    return { success: true, data };
+  } catch (err) {
+    const e = err.response?.data?.error || err.message;
+    console.error(`[WA] sendCtaUrlMessage to ${to} failed:`, JSON.stringify(e));
+    return { success: false, error: e };
+  }
+}
+
+module.exports = { sendTextMessage, sendReplyButtons, sendImageMessage, sendFlowMessage, sendCtaUrlMessage };
 

@@ -23,6 +23,7 @@ const {
   sendReplyButtons,
   sendImageMessage,
   sendFlowMessage,
+  sendCtaUrlMessage,
 } = require('../services/whatsappService');
 const { generateCard, generateBackCard } = require('../services/cardGenerator');
 const { uploadPhoto, uploadCard, uploadBackCard } = require('../services/cloudinaryService');
@@ -205,11 +206,21 @@ async function handleTextMessage(from, mobile, db) {
       );
     } else if (pending && pending.status === 'awaiting_photo') {
       const { makeUploadToken } = require('./upload');
+      const { sendCtaUrlMessage } = require('../services/whatsappService');
       const uploadUrl = `${config.baseUrl}/upload/${makeUploadToken(mobile, pending.epic_no)}`;
-      await sendTextMessage(
+      const result = await sendCtaUrlMessage(
         from,
-        `Hi! We have your details (EPIC: ${pending.epic_no}).\n\nTo generate your *Digital Member ID Card*, tap the link below to upload your photo:\n\n📸 *${uploadUrl}*\n\nOr simply send your photo directly in this chat.`,
+        '📸 Upload Your Photo',
+        `Hi! We have your details (EPIC: *${pending.epic_no}*).\n\nTap the button below to upload your passport-size photo and generate your *Digital Member ID Card*.\n\n_You can also send your photo directly in this chat._`,
+        'We The Leaders — Lead the Change',
+        'Upload Photo',
+        uploadUrl,
       );
+      // Fallback to text if CTA fails
+      if (!result.success) {
+        await sendTextMessage(from,
+          `Hi! We have your details (EPIC: ${pending.epic_no}).\n\nUpload your photo here:\n${uploadUrl}\n\nOr send your photo directly in this chat.`);
+      }
     } else {
       console.log('[Webhook] Sending REGISTRATION flow to ' + from);
       const result = await sendFlowMessage(from, 'registration');

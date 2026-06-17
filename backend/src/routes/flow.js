@@ -332,24 +332,31 @@ async function handleConfirmDetails(body, flowToken) {
 
     console.log(`[Flow] Pending registration saved for ${waMobile || epic_no}`);
 
-    // Send photo-prompt message immediately after confirmation.
-    // Sends a web upload link (crop + upload page) so the user can upload
-    // their photo via browser even if Puppeteer/Chrome is unavailable on server.
+    // Send CTA URL button so user gets a proper "Upload Photo" button
+    // that opens the crop/upload page inside WhatsApp's in-app browser.
     const waTo = waNumber || ('91' + waMobile);
     if (waTo) {
-      const { sendTextMessage } = require('../services/whatsappService');
+      const { sendCtaUrlMessage, sendTextMessage } = require('../services/whatsappService');
       const { makeUploadToken } = require('./upload');
       const displayName = voter_name || 'Member';
-      const uploadUrl = `${require('../config').baseUrl}/upload/${makeUploadToken(waMobile, epic_no)}`;
+      const uploadUrl   = `${require('../config').baseUrl}/upload/${makeUploadToken(waMobile, epic_no)}`;
       setImmediate(async () => {
         try {
-          await sendTextMessage(
+          await sendCtaUrlMessage(
             waTo,
-            `✅ *Details Confirmed!*\n\nHi *${displayName}*! Your voter details have been verified.\n\nTo generate your *Digital Member ID Card*, tap the link below to upload your passport-size photo:\n\n📸 *${uploadUrl}*\n\nOr simply send your photo directly in this chat.\n\n📌 *Tips for a good photo:*\n• Clear face, good lighting\n• Plain background preferred\n• No sunglasses`,
+            '📸 Upload Your Photo',
+            `Hi *${displayName}*! Your voter details are verified ✅\n\nTap the button below to upload your passport-size photo and generate your *Digital Member ID Card*.\n\n_You can also send your photo directly in this chat._`,
+            'We The Leaders — Lead the Change',
+            'Upload Photo',
+            uploadUrl,
           );
-          console.log(`[Flow] Photo-prompt + upload link sent to ${waTo}`);
+          console.log(`[Flow] CTA upload button sent to ${waTo}`);
         } catch (err) {
-          console.error(`[Flow] Could not send photo-prompt to ${waTo}:`, err.message);
+          console.error(`[Flow] CTA send failed, falling back to text for ${waTo}:`, err.message);
+          try {
+            await sendTextMessage(waTo,
+              `✅ Details confirmed, *${displayName}*!\n\nUpload your photo here:\n${uploadUrl}\n\nOr send your photo directly in this chat.`);
+          } catch (_) {}
         }
       });
     }
