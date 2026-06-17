@@ -333,19 +333,21 @@ async function handleConfirmDetails(body, flowToken) {
     console.log(`[Flow] Pending registration saved for ${waMobile || epic_no}`);
 
     // Send photo-prompt message immediately after confirmation.
-    // This fires as soon as the CONFIRM_DETAILS is submitted, so the user
-    // sees the message the moment the flow closes — no dependency on nfm_reply.
+    // Sends a web upload link (crop + upload page) so the user can upload
+    // their photo via browser even if Puppeteer/Chrome is unavailable on server.
     const waTo = waNumber || ('91' + waMobile);
     if (waTo) {
       const { sendTextMessage } = require('../services/whatsappService');
+      const { makeUploadToken } = require('./upload');
       const displayName = voter_name || 'Member';
+      const uploadUrl = `${require('../config').baseUrl}/upload/${makeUploadToken(waMobile, epic_no)}`;
       setImmediate(async () => {
         try {
           await sendTextMessage(
             waTo,
-            `✅ *Details Confirmed!*\n\nHi *${displayName}*! Your voter details have been verified.\n\nTo generate your *Digital Member ID Card*, please send your *passport-size photo* here in this chat.\n\n📌 *Tips for a good photo:*\n• Clear face, good lighting\n• Plain background preferred\n• No sunglasses`,
+            `✅ *Details Confirmed!*\n\nHi *${displayName}*! Your voter details have been verified.\n\nTo generate your *Digital Member ID Card*, tap the link below to upload your passport-size photo:\n\n📸 *${uploadUrl}*\n\nOr simply send your photo directly in this chat.\n\n📌 *Tips for a good photo:*\n• Clear face, good lighting\n• Plain background preferred\n• No sunglasses`,
           );
-          console.log(`[Flow] Photo-prompt message sent to ${waTo}`);
+          console.log(`[Flow] Photo-prompt + upload link sent to ${waTo}`);
         } catch (err) {
           console.error(`[Flow] Could not send photo-prompt to ${waTo}:`, err.message);
         }

@@ -204,9 +204,11 @@ async function handleTextMessage(from, mobile, db) {
         'Lead the Change',
       );
     } else if (pending && pending.status === 'awaiting_photo') {
+      const { makeUploadToken } = require('./upload');
+      const uploadUrl = `${config.baseUrl}/upload/${makeUploadToken(mobile, pending.epic_no)}`;
       await sendTextMessage(
         from,
-        'Hi! We have your details (EPIC: ' + pending.epic_no + ').\n\nPlease send your passport-size photo here to generate your Digital Member ID Card.',
+        `Hi! We have your details (EPIC: ${pending.epic_no}).\n\nTo generate your *Digital Member ID Card*, tap the link below to upload your photo:\n\n📸 *${uploadUrl}*\n\nOr simply send your photo directly in this chat.`,
       );
     } else {
       console.log('[Webhook] Sending REGISTRATION flow to ' + from);

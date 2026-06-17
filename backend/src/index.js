@@ -22,6 +22,7 @@ const adminRoutes   = require('./routes/admin');
 const publicRoutes  = require('./routes/public');
 const webhookRoutes = require('./routes/webhook');
 const flowRoutes    = require('./routes/flow');
+const { router: uploadRoutes } = require('./routes/upload');
 
 const app = express();
 
@@ -154,9 +155,10 @@ app.get('/health', (req, res) => {
 });
 
 // ── API Routes ────────────────────────────────────────────────────
-app.use('/api',   chatRoutes);
-app.use('/admin', adminRoutes);
-app.use('/',      publicRoutes);
+app.use('/api',    chatRoutes);
+app.use('/admin',  adminRoutes);
+app.use('/upload', uploadRoutes);
+app.use('/',       publicRoutes);
 
 // ── 404 fallback ─────────────────────────────────────────────────
 app.use((req, res) => {

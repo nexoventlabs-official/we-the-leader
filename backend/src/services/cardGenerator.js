@@ -42,23 +42,26 @@ async function getBrowser() {
   // On Linux (Render/production) use @sparticuz/chromium which ships its own binary
   if (process.platform === 'linux') {
     try {
-      const chromium = require('@sparticuz/chromium');
-      chromium.setHeadlessMode = true;
-      chromium.setGraphicsMode = false;
-      executablePath = await chromium.executablePath();
-      launchArgs = chromium.args;
+      // @sparticuz/chromium v3+ uses a default export
+      const chromium = require('@sparticuz/chromium').default;
+      chromium.graphicsMode = false;
+      executablePath = await chromium.executablePath(); // returns Promise<string>
+      launchArgs = [...chromium.args, '--no-zygote', '--single-process'];
       console.log(`[Card] Using @sparticuz/chromium: ${executablePath}`);
     } catch (e) {
-      console.warn('[Card] @sparticuz/chromium not available, falling back:', e.message);
+      console.warn('[Card] @sparticuz/chromium not available, trying puppeteer:', e.message);
     }
   }
 
-  // Windows / macOS dev: use puppeteer's bundled Chrome
+  // Windows / macOS dev OR Linux fallback: use puppeteer's bundled Chrome
   if (!executablePath) {
     try {
       const { executablePath: ep } = require('puppeteer');
-      executablePath = ep();
-      console.log(`[Card] Using puppeteer bundled Chrome: ${executablePath}`);
+      const p = ep();
+      if (p && fs.existsSync(p)) {
+        executablePath = p;
+        console.log(`[Card] Using puppeteer bundled Chrome: ${executablePath}`);
+      }
     } catch (_) {}
   }
 
