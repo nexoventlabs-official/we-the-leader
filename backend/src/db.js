@@ -210,7 +210,7 @@ const findVoterByEpic = async (epicNo) => {
         .catch(() => null) // Swallow collection-not-exist or query errors
     );
 
-    const timeoutMs = 3500; // 3.5 seconds timeout (safe for WhatsApp's 5s limit)
+    const timeoutMs = 8000; // 8 seconds — WhatsApp allows up to 10s for data_exchange
     
     try {
       // Race: first match OR timeout

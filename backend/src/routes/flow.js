@@ -144,18 +144,24 @@ router.post(
       screenResponse = { data: { status: 'active' } }; // safe fallback for ping
     }
 
-    // Ensure response is always valid JSON
+    // WhatsApp Flows requires the response body to be the raw base64-encoded
+    // encrypted string — NOT a JSON wrapper like { encrypted_response: "..." }
     try {
       const encryptedResp = encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer);
       console.log(`[Flow] Encrypted response size: ${encryptedResp.length} bytes`);
       return res
-        .set('Content-Type', 'application/json')
+        .set('Content-Type', 'text/plain')
         .status(200)
-        .json({ encrypted_response: encryptedResp });
+        .send(encryptedResp);
     } catch (err) {
       console.error('[Flow] Encryption error:', err.message, 'Response was:', JSON.stringify(screenResponse).slice(0, 200));
-      // Last-ditch fallback: return active status
-      return res.status(200).json({ data: { status: 'active' } });
+      // Last-ditch fallback — encrypt a safe active payload
+      try {
+        const fallback = encryptResponse({ data: { status: 'active' } }, aesKeyBuffer, initialVectorBuffer);
+        return res.set('Content-Type', 'text/plain').status(200).send(fallback);
+      } catch (_) {
+        return res.status(500).send();
+      }
     }
   },
 );
