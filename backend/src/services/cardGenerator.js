@@ -109,10 +109,11 @@ async function generateCard(voter, photoBuffer = null) {
 
   const epicNo   = clean(voter.epic_no || voter.EPIC_NO || '').toUpperCase();
   const rawName  = clean(voter.name || voter.VOTER_NAME || voter.voter_name || '');
-  const name     = toTitle(rawName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim()) || '-';
-  const assembly = toTitle(clean(voter.assembly_name || voter.ASSEMBLY_NAME || '')) || '-';
+  // Match web template: name shown UPPERCASE, stripped of trailing dashes/spaces
+  const name     = rawName.replace(/[\s\-–—]+$/, '').replace(/\s+/g, ' ').trim().toUpperCase() || '-';
+  const assembly = (clean(voter.assembly_name || voter.ASSEMBLY_NAME || '').trim().toUpperCase()) || '-';
   const booth    = clean(voter.part_no || voter.PART_NO || voter.booth || voter.booth_no || '') || '-';
-  const district = toTitle(clean(voter.district || voter.DISTRICT || voter.DISTRICT_NAME || '')) || '-';
+  const district = (clean(voter.district || voter.DISTRICT || voter.DISTRICT_NAME || '').trim().toUpperCase()) || '-';
   const ptcCode  = clean(voter.ptc_code || '');
   const memberId = ptcCode || `WTL-${epicNo.slice(-6)}`;
 
