@@ -14,6 +14,34 @@ const { uploadPhoto, uploadCard, uploadBackCard } = require('../services/cloudin
 const { generateCard, generateBackCard }          = require('../services/cardGenerator');
 const { sendTextMessage, sendImageMessage }       = require('../services/whatsappService');
 
+// ── Status page helper ────────────────────────────────────────────
+function statusPage(title, message, bgColor, textColor) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>WTL Member Card</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d0d0d;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.box{background:${bgColor};border-radius:16px;padding:36px 28px;max-width:380px;width:100%;text-align:center;border:1px solid ${textColor}33}
+.icon{font-size:3rem;margin-bottom:16px}
+h2{font-size:1.3rem;font-weight:700;color:${textColor};margin-bottom:14px}
+p{font-size:.9rem;color:#aaa;line-height:1.7}
+p strong{color:#ddd}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="icon">${title.startsWith('⏳') ? '⏳' : title.startsWith('✅') ? '🎉' : 'ℹ️'}</div>
+  <h2>${title.replace(/^[^\w\s]*\s*/, '')}</h2>
+  <p>${message}</p>
+</div>
+</body>
+</html>`;
+}
+
 // ── Token helpers ─────────────────────────────────────────────────
 function makeUploadToken(mobile, epicNo) {
   const payload = `${mobile}:${epicNo}:${Math.floor(Date.now() / 3_600_000)}`;
@@ -40,7 +68,7 @@ function verifyUploadToken(token) {
 }
 
 // ── GET /upload/:token ────────────────────────────────────────────
-router.get('/:token', (req, res) => {
+router.get('/:token', async (req, res) => {
   const info = verifyUploadToken(req.params.token);
   if (!info) {
     return res.status(410).send(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
@@ -48,6 +76,54 @@ router.get('/:token', (req, res) => {
 <h2 style="color:#f5c842">⚠️ Link Expired</h2>
 <p style="color:#aaa;margin-top:12px">Please message the WhatsApp bot again to get a new link.</p>
 </body></html>`);
+  }
+
+  // ── Check current registration status before showing upload page ─
+  const { mobile, epicNo } = info;
+  try {
+    const db = getDb();
+
+    // Already has a generated card
+    const genDoc = await db.collection('generated_voters').findOne(
+      { EPIC_NO: epicNo }, { projection: { card_url: 1, VOTER_NAME: 1, ptc_code: 1 } },
+    );
+    if (genDoc && genDoc.card_url) {
+      return res.send(statusPage(
+        '✅ Already Registered!',
+        `Your Digital Member ID Card has already been generated.<br><br>
+         <strong>${genDoc.VOTER_NAME || ''}</strong><br>
+         WTL Code: <strong>${genDoc.ptc_code || ''}</strong><br><br>
+         Please check your WhatsApp — your card was sent there.<br>
+         If you need it again, send <strong>"hi"</strong> to the WhatsApp bot.`,
+        '#0a220a', '#5cf05c'
+      ));
+    }
+
+    // Photo received, card is being generated right now
+    const pending = await db.collection('pending_registrations').findOne(
+      { mobile }, { projection: { status: 1, voter_name: 1 } },
+    );
+    if (pending && pending.status === 'processing') {
+      return res.send(statusPage(
+        '⏳ Generating Your Card...',
+        `Hi <strong>${pending.voter_name || 'Member'}</strong>!<br><br>
+         We already received your photo and your ID Card is being generated right now.<br><br>
+         Please wait — it will be sent to your WhatsApp shortly.`,
+        '#1a1a0a', '#f5c842'
+      ));
+    }
+
+    if (pending && pending.status === 'completed') {
+      return res.send(statusPage(
+        '✅ Registration Complete!',
+        `Hi <strong>${pending.voter_name || 'Member'}</strong>!<br><br>
+         Your registration is complete and your Digital Member ID Card has been sent to your WhatsApp.<br><br>
+         If you need it again, send <strong>"hi"</strong> to the WhatsApp bot.`,
+        '#0a220a', '#5cf05c'
+      ));
+    }
+  } catch (_) {
+    // DB check failed — show upload page anyway
   }
 
   const TOKEN = req.params.token;
@@ -403,7 +479,14 @@ label.pick-btn input{position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px
           try{ data=JSON.parse(txt); } catch(e){ throw new Error('Server error: '+txt.slice(0,80)); }
           if(!data.success) throw new Error(data.message || 'Upload failed');
           document.getElementById('prog-box').style.display='none';
-          document.getElementById('ok-box').style.display='block';
+          // Already processing or done — show appropriate message
+          if(data.already) {
+            document.getElementById('ok-box').style.display='block';
+            document.querySelector('.ok-title').textContent = data.message === 'already_processing' ? 'Card Being Generated!' : 'Already Done!';
+            document.querySelector('.ok-sub').textContent   = data.displayMessage;
+          } else {
+            document.getElementById('ok-box').style.display='block';
+          }
         })
         .catch(function(err){
           showErr(err.message || 'Upload failed. Please try again.', btn);
@@ -447,6 +530,28 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
       success: false,
       message: 'No pending registration found. Please message the bot again to restart.',
     });
+  }
+
+  // ── Duplicate submission guard ────────────────────────────────
+  // If already processing or completed, don't regenerate
+  if (pending.status === 'processing') {
+    return res.json({
+      success: true,
+      message: 'already_processing',
+      already: true,
+      displayMessage: 'Your photo was already received and your card is being generated. Please check WhatsApp shortly!',
+    });
+  }
+  if (pending.status === 'completed') {
+    const genDoc = await db.collection('generated_voters').findOne({ EPIC_NO: epicNo }, { projection: { card_url: 1 } });
+    if (genDoc && genDoc.card_url) {
+      return res.json({
+        success: true,
+        message: 'already_done',
+        already: true,
+        displayMessage: 'Your Digital Member ID Card has already been generated and sent to your WhatsApp!',
+      });
+    }
   }
 
   // Respond immediately so the browser shows the success screen
