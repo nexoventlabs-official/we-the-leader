@@ -462,7 +462,15 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
       await sendTextMessage(waTo, '⏳ Generating your Digital Member ID Card… please wait a moment.');
 
       const photoBuffer = req.file.buffer;
-      const ptcCode     = 'PTC-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+      const wtlCode     = 'WTL-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+      // Fetch voter from DB1 to get PART_NO (booth number)
+      let partNo = '';
+      try {
+        const { findVoterByEpic } = require('../db');
+        const voterDoc = await findVoterByEpic(epicNo);
+        if (voterDoc) partNo = String(voterDoc.PART_NO || voterDoc.part_no || '').trim();
+      } catch (_) {}
 
       const voterData = {
         epic_no:       epicNo,  EPIC_NO:       epicNo,
@@ -472,8 +480,11 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
         ASSEMBLY_NAME: pending.assembly_name || '',
         district:      pending.district      || '',
         DISTRICT_NAME: pending.district      || '',
+        part_no:       partNo,
+        PART_NO:       partNo,
+        booth:         partNo,
         mobile,        MOBILE_NO: mobile,
-        ptc_code:      ptcCode,
+        ptc_code:      wtlCode,
       };
 
       const frontBuffer = await generateCard(voterData, photoBuffer);
@@ -487,12 +498,13 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
         { EPIC_NO: epicNo },
         {
           $set: {
-            EPIC_NO: epicNo, ptc_code: ptcCode,
+            EPIC_NO: epicNo, ptc_code: wtlCode,
             photo_url: photoUrl, card_url: frontUrl, back_url: backUrl, combined_url: frontUrl,
             generated_at: now,
             VOTER_NAME:    pending.voter_name    || '',
             ASSEMBLY_NAME: pending.assembly_name || '',
             DISTRICT_NAME: pending.district      || '',
+            PART_NO:       partNo,
             MOBILE_NO: mobile, source: 'web_upload',
           },
           $setOnInsert: { created_at: now },
@@ -509,7 +521,7 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
         `👤 Name     : ${pending.voter_name    || ''}`,
         `🗳️  EPIC No  : ${epicNo}`,
         `🏛️  Assembly : ${pending.assembly_name || ''}`,
-        `🔖 PTC Code : ${ptcCode}`,
+        `🔖 WTL Code : ${wtlCode}`,
         '', 'We The Leaders — Lead the Change',
       ].join('\n');
 
@@ -517,7 +529,7 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
       await new Promise(r => setTimeout(r, 1000));
       await sendImageMessage(waTo, backUrl, '🪪 *Your Digital Member ID Card — BACK*\n\nWe The Leaders — Lead the Change');
       await sendTextMessage(waTo,
-        `🎉 *Registration Complete!*\n\nWelcome to We The Leaders, *${pending.voter_name || 'Member'}*!\n\nYour PTC Code: *${ptcCode}*\n\nShare and invite others to join!`);
+        `🎉 *Registration Complete!*\n\nWelcome to We The Leaders, *${pending.voter_name || 'Member'}*!\n\nYour WTL Code: *${wtlCode}*\n\nShare and invite others to join!`);
 
       console.log(`[Upload] Card generated & sent for ${mobile} / ${epicNo}`);
     } catch (err) {

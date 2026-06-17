@@ -30,8 +30,8 @@ const { uploadPhoto, uploadCard, uploadBackCard } = require('../services/cloudin
 
 const BTN_MY_CARD = 'btn_my_card';
 
-function generatePtcCode() {
-  return 'PTC-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+function generateWtlCode() {
+  return 'WTL-' + crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
 // ── Signature verification ────────────────────────────────────────
@@ -288,7 +288,15 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
       return;
     }
 
-    const ptcCode   = generatePtcCode();
+    const wtlCode   = generateWtlCode();
+
+    // Fetch voter from DB1 to get PART_NO (booth number)
+    let partNo = '';
+    try {
+      const voterDoc = await findVoterByEpic(epicNo);
+      if (voterDoc) partNo = String(voterDoc.PART_NO || voterDoc.part_no || '').trim();
+    } catch (_) {}
+
     const voterData = {
       epic_no:       epicNo,
       EPIC_NO:       epicNo,
@@ -298,9 +306,12 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
       ASSEMBLY_NAME: pending.assembly_name || '',
       district:      pending.district      || '',
       DISTRICT_NAME: pending.district      || '',
+      part_no:       partNo,
+      PART_NO:       partNo,
+      booth:         partNo,
       mobile:        mobile,
       MOBILE_NO:     mobile,
-      ptc_code:      ptcCode,
+      ptc_code:      wtlCode,
     };
 
     const frontBuffer = await generateCard(voterData, photoBuffer);
@@ -317,7 +328,7 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
       {
         $set: {
           EPIC_NO:       epicNo,
-          ptc_code:      ptcCode,
+          ptc_code:      wtlCode,
           photo_url:     photoUrl,
           card_url:      frontUrl,
           back_url:      backUrl,
@@ -326,6 +337,7 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
           VOTER_NAME:    pending.voter_name    || '',
           ASSEMBLY_NAME: pending.assembly_name || '',
           DISTRICT_NAME: pending.district      || '',
+          PART_NO:       partNo,
           MOBILE_NO:     mobile,
           source:        'whatsapp',
         },
@@ -346,7 +358,7 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
       'Name     : ' + (pending.voter_name    || ''),
       'EPIC No  : ' + epicNo,
       'Assembly : ' + (pending.assembly_name || ''),
-      'PTC Code : ' + ptcCode,
+      'WTL Code : ' + wtlCode,
       '',
       'We The Leaders -- Lead the Change',
     ].join('\n');
@@ -358,7 +370,7 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
     const welcomeName = pending.voter_name || 'Member';
     await sendTextMessage(
       from,
-      'Registration Complete!\n\nWelcome to We The Leaders, ' + welcomeName + '!\n\nYour PTC Code: ' + ptcCode + '\n\nShare your referral and invite others to join!',
+      'Registration Complete!\n\nWelcome to We The Leaders, ' + welcomeName + '!\n\nYour WTL Code: ' + wtlCode + '\n\nShare your referral and invite others to join!',
     );
 
   } catch (err) {
@@ -398,12 +410,12 @@ async function handleSendCard(from, mobile, db) {
 
     const name    = (genDoc && genDoc.VOTER_NAME) || '';
     const epicNo  = (genDoc && genDoc.EPIC_NO)    || '';
-    const ptcCode = (genDoc && genDoc.ptc_code)   || '';
+    const wtlCode = (genDoc && genDoc.ptc_code)   || '';
 
     const parts = ['Your Digital Member ID Card -- FRONT'];
     if (name)    parts.push('Name     : ' + name);
     if (epicNo)  parts.push('EPIC No  : ' + epicNo);
-    if (ptcCode) parts.push('PTC Code : ' + ptcCode);
+    if (wtlCode) parts.push('WTL Code : ' + wtlCode);
     parts.push('');
     parts.push('We The Leaders -- Lead the Change');
 
