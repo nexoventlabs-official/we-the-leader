@@ -174,25 +174,46 @@ async function processMessage(msg) {
 async function handleTextMessage(from, mobile, db) {
   try {
     const results = await Promise.all([
+      // Check by MOBILE_NO (WhatsApp registrations)
       db.collection('generated_voters').findOne(
         { MOBILE_NO: mobile },
-        { projection: { VOTER_NAME: 1, EPIC_NO: 1 } },
+        { projection: { VOTER_NAME: 1, EPIC_NO: 1, card_url: 1 } },
       ),
       db.collection('generation_stats').findOne(
         { auth_mobile: mobile },
-        { projection: { _id: 1 } },
+        { projection: { _id: 1, epic_no: 1 } },
       ),
       db.collection('pending_registrations').findOne(
         { mobile },
-        { projection: { status: 1, epic_no: 1 } },
+        { projection: { status: 1, epic_no: 1, voter_name: 1 } },
       ),
     ]);
 
-    const genDoc  = results[0];
+    let genDoc  = results[0];
     const statDoc = results[1];
     const pending = results[2];
 
-    const isMember = Boolean(genDoc || statDoc);
+    // If registered via web with no MOBILE_NO stored, look up by EPIC from pending or stats
+    if (!genDoc) {
+      const epicNo = (pending && pending.epic_no) || (statDoc && statDoc.epic_no);
+      if (epicNo) {
+        const byEpic = await db.collection('generated_voters').findOne(
+          { EPIC_NO: epicNo },
+          { projection: { VOTER_NAME: 1, EPIC_NO: 1, card_url: 1, MOBILE_NO: 1 } },
+        );
+        if (byEpic && byEpic.card_url) {
+          genDoc = byEpic;
+          // Backfill MOBILE_NO so next lookup is instant
+          if (!byEpic.MOBILE_NO) {
+            db.collection('generated_voters').updateOne(
+              { EPIC_NO: epicNo }, { $set: { MOBILE_NO: mobile } }
+            ).catch(() => {});
+          }
+        }
+      }
+    }
+
+    const isMember = Boolean(genDoc?.card_url || statDoc);
     console.log('[Webhook] ' + mobile + ' -> isMember: ' + isMember + ', pending: ' + (pending && pending.status));
 
     if (isMember) {
@@ -387,10 +408,28 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
 // ── "My Card" button -> send front + back ────────────────────────
 async function handleSendCard(from, mobile, db) {
   try {
-    const genDoc = await db.collection('generated_voters').findOne(
+    // Try MOBILE_NO first, fall back to EPIC from pending/stats
+    let genDoc = await db.collection('generated_voters').findOne(
       { MOBILE_NO: mobile },
       { projection: { card_url: 1, back_url: 1, VOTER_NAME: 1, EPIC_NO: 1, ptc_code: 1 } },
     );
+
+    if (!genDoc || !genDoc.card_url) {
+      // Try via pending_registrations epic_no
+      const pending = await db.collection('pending_registrations').findOne(
+        { mobile }, { projection: { epic_no: 1 } },
+      );
+      const stat = await db.collection('generation_stats').findOne(
+        { auth_mobile: mobile }, { projection: { epic_no: 1 } },
+      );
+      const epicNo = (pending && pending.epic_no) || (stat && stat.epic_no);
+      if (epicNo) {
+        genDoc = await db.collection('generated_voters').findOne(
+          { EPIC_NO: epicNo },
+          { projection: { card_url: 1, back_url: 1, VOTER_NAME: 1, EPIC_NO: 1, ptc_code: 1 } },
+        );
+      }
+    }
 
     const cardUrl = (genDoc && genDoc.card_url) || '';
     const backUrl = (genDoc && genDoc.back_url) || '';
