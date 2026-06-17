@@ -292,18 +292,20 @@ async function handleEpicEntry(body) {
 // flow_token format: "registration_{WA_number}_{timestamp}"
 
 async function handleConfirmDetails(body, flowToken) {
-  const epic_no      = (body.data?.epic_no      || '').trim().toUpperCase();
-  const voter_name   = (body.data?.voter_name   || '').trim();
+  const epic_no       = (body.data?.epic_no       || '').trim().toUpperCase();
+  const voter_name    = (body.data?.voter_name    || '').trim();
   const assembly_name = (body.data?.assembly_name || '').trim();
-  const district     = (body.data?.district     || '').trim();
+  const district      = (body.data?.district      || '').trim();
 
-  // Extract WA mobile from flow_token: "registration_918106811285_1234567890"
+  // Extract WA number from flow_token: "registration_918106811285_1234567890"
   let waMobile = '';
+  let waNumber = '';
   const parts = (flowToken || '').split('_');
   if (parts.length >= 2) {
     const raw = parts[1];
-    // Strip country code 91 if 12 digits
-    waMobile = (raw.length === 12 && raw.startsWith('91')) ? raw.slice(2) : raw;
+    waNumber  = raw;
+    // Strip country code 91 if 12 digits to get local 10-digit mobile
+    waMobile  = (raw.length === 12 && raw.startsWith('91')) ? raw.slice(2) : raw;
   }
 
   try {
@@ -311,7 +313,7 @@ async function handleConfirmDetails(body, flowToken) {
 
     // Save pending_registrations — webhook will pick this up when user sends photo
     await db.collection('pending_registrations').updateOne(
-      { mobile: waMobile || epic_no }, // fallback key if no mobile parsed
+      { mobile: waMobile || epic_no },
       {
         $set: {
           epic_no,
@@ -319,7 +321,7 @@ async function handleConfirmDetails(body, flowToken) {
           assembly_name,
           district,
           mobile:     waMobile,
-          wa_number:  parts[1] || '',
+          wa_number:  waNumber,
           status:     'awaiting_photo',
           updated_at: new Date(),
         },
@@ -330,6 +332,26 @@ async function handleConfirmDetails(body, flowToken) {
 
     console.log(`[Flow] Pending registration saved for ${waMobile || epic_no}`);
 
+    // Send photo-prompt message immediately after confirmation.
+    // This fires as soon as the CONFIRM_DETAILS is submitted, so the user
+    // sees the message the moment the flow closes — no dependency on nfm_reply.
+    const waTo = waNumber || ('91' + waMobile);
+    if (waTo) {
+      const { sendTextMessage } = require('../services/whatsappService');
+      const displayName = voter_name || 'Member';
+      setImmediate(async () => {
+        try {
+          await sendTextMessage(
+            waTo,
+            `✅ *Details Confirmed!*\n\nHi *${displayName}*! Your voter details have been verified.\n\nTo generate your *Digital Member ID Card*, please send your *passport-size photo* here in this chat.\n\n📌 *Tips for a good photo:*\n• Clear face, good lighting\n• Plain background preferred\n• No sunglasses`,
+          );
+          console.log(`[Flow] Photo-prompt message sent to ${waTo}`);
+        } catch (err) {
+          console.error(`[Flow] Could not send photo-prompt to ${waTo}:`, err.message);
+        }
+      });
+    }
+
     return {
       screen: 'SUCCESS',
       data: { epic_no, voter_name },
@@ -338,9 +360,7 @@ async function handleConfirmDetails(body, flowToken) {
     console.error('[Flow] handleConfirmDetails error:', err.message);
     return {
       screen: 'CONFIRM_DETAILS',
-      data: {
-        epic_no, voter_name, assembly_name, district,
-      },
+      data: { epic_no, voter_name, assembly_name, district },
     };
   }
 }
