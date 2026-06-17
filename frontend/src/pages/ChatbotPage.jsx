@@ -324,15 +324,16 @@ export default function ChatbotPage() {
     try {
       const res = await chat.checkMobile(mobile)
       setIsTyping(false)
-      if (res.data?.has_card && res.data?.card_url) {
+      // Axios interceptor unwraps response.data, so res IS the data object directly
+      if (res?.has_card && res?.card_url) {
         // Already registered — show card directly, skip EPIC entry
         const card = {
-          card_url:   res.data.card_url,
-          back_url:   res.data.back_url   || '',
-          photo_url:  res.data.photo_url  || '',
-          epic_no:    res.data.epic_no    || '',
-          voter_name: res.data.voter_name || '',
-          ptc_code:   res.data.ptc_code   || '',
+          card_url:   res.card_url   || '',
+          back_url:   res.back_url   || '',
+          photo_url:  res.photo_url  || '',
+          epic_no:    res.epic_no    || '',
+          voter_name: res.voter_name || '',
+          ptc_code:   res.ptc_code   || '',
         }
         cardRef.current = card
         epicRef.current = card.epic_no
