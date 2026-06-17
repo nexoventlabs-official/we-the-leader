@@ -236,6 +236,17 @@ body {
   font-size: clamp(18px, 2.8vw, 28px);
 }
 
+/* ── NAME row: hide label & colon, show only the value prominently ── */
+.fields .field-row:first-child .field-label,
+.fields .field-row:first-child .field-colon { display: none; }
+.fields .field-row:first-child .field-value {
+  font-size: clamp(22px, 3.2vw, 36px);
+  font-weight: 900;
+  color: #0C3B1C;
+  max-width: 560px;
+  letter-spacing: 1.5px;
+}
+
 /* ── MEMBERSHIP ID BOX (bottom-left) ── */
 .id-box {
   position: absolute;
