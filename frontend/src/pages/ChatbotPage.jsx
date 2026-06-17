@@ -318,7 +318,35 @@ export default function ChatbotPage() {
     mobileRef.current = mobile
     addMsg('user', 'text', { text: maskMobile(mobile) })
     setInputValue('')
-    // Skip OTP — go straight to EPIC
+
+    // Check if this mobile already has a registered card
+    setIsTyping(true)
+    try {
+      const res = await chat.checkMobile(mobile)
+      setIsTyping(false)
+      if (res.data?.has_card && res.data?.card_url) {
+        // Already registered — show card directly, skip EPIC entry
+        const card = {
+          card_url:   res.data.card_url,
+          back_url:   res.data.back_url   || '',
+          photo_url:  res.data.photo_url  || '',
+          epic_no:    res.data.epic_no    || '',
+          voter_name: res.data.voter_name || '',
+          ptc_code:   res.data.ptc_code   || '',
+        }
+        cardRef.current = card
+        epicRef.current = card.epic_no
+        saveCache(card, {})
+        await botSay(`✅ Welcome back! Your Digital Member ID Card is ready.`, 400)
+        addMsg('bot', 'generated_card', { card })
+        setChatState(S.DONE)
+        return
+      }
+    } catch (_) {
+      setIsTyping(false)
+    }
+
+    // Not registered — proceed to EPIC entry
     await botSay('✅ Mobile saved! Now enter your EPIC Number (Voter ID).', 400)
     await botSay('📋 Format: 3 letters + 7 digits  e.g. ABC1234567', 200)
     setChatState(S.AWAIT_EPIC)
