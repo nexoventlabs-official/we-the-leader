@@ -96,6 +96,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .crop-hint{font-size:.85rem;color:#888;text-align:center;margin-bottom:10px}
 .crop-wrap{width:100%;background:#000;border-radius:14px;overflow:hidden;position:relative;min-height:300px;display:flex;align-items:center;justify-content:center}
 .crop-wrap img{display:block;max-width:100%;max-height:60vh;object-fit:contain}
+.crop-overlay{position:absolute;pointer-events:none;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.55) inset;border:2px dashed rgba(245,200,66,0.9);width:40%;aspect-ratio:268/384;max-height:86%;}
+.crop-overlay:before{content:'';position:absolute;inset:0;border-radius:12px;box-shadow:0 0 0 4px rgba(0,0,0,0.2) inset}
 .crop-actions{display:flex;gap:10px;margin-top:14px}
 .btn-retake{flex:1;padding:14px;border:2px solid #444;background:transparent;color:#aaa;border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer}
 .btn-retake:active{background:#1a1a1a}
@@ -166,6 +168,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <p class="crop-hint">Drag to reposition &nbsp;•&nbsp; Pinch to zoom</p>
   <div class="crop-wrap">
     <img id="crop-img" src="" alt=""/>
+    <div class="crop-overlay"></div>
   </div>
   <div class="crop-actions">
     <button class="btn-retake" onclick="retake()">↩ Retake</button>
@@ -225,7 +228,7 @@ function initCropper(img) {
     }
 
     cropper = new Cropper(img, {
-      aspectRatio:      3 / 4,
+      aspectRatio:      268 / 384,
       viewMode:         1,
       dragMode:         'move',
       autoCropArea:     0.85,
@@ -239,6 +242,21 @@ function initCropper(img) {
       toggleDragModeOnDblclick: false,
       background:       false,
     });
+    // Align crop box to the visual overlay guide if present
+    setTimeout(() => {
+      try {
+        const overlay = document.querySelector('.crop-overlay');
+        if (overlay && cropper) {
+          const contRect = img.getBoundingClientRect();
+          const oRect = overlay.getBoundingClientRect();
+          const left = Math.max(0, oRect.left - contRect.left);
+          const top = Math.max(0, oRect.top - contRect.top);
+          const width = Math.min(contRect.width, oRect.width);
+          const height = Math.min(contRect.height, oRect.height);
+          cropper.setCropBoxData({ left: Math.round(left), top: Math.round(top), width: Math.round(width), height: Math.round(height) });
+        }
+      } catch (e) {}
+    }, 50);
     return true;
   } catch(err) {
     console.error('Cropper init error:', err);
@@ -319,7 +337,9 @@ async function submitPhoto() {
   setProgress('Cropping photo…');
 
   try {
-    const canvas = cropper.getCroppedCanvas({ width: 600, height: 800, imageSmoothingQuality: 'high' });
+    // Use dimensions that match the card photo-box aspect ratio (268×384)
+    // Multiply by 2 for sufficient resolution: 268*2=536, 384*2=768
+    const canvas = cropper.getCroppedCanvas({ width: 536, height: 768, imageSmoothingQuality: 'high' });
     if (!canvas) throw new Error('Crop failed. Please retake the photo.');
 
     setProgress('Processing image…');
