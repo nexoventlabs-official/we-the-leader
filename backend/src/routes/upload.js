@@ -62,53 +62,60 @@ router.get('/:token', (req, res) => {
 <title>Upload Photo — WTL Member Card</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"/>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d0d0d;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px}
-  
-  .header{text-align:center;margin-bottom:24px;padding-top:8px}
-  .header h1{font-size:1.5rem;font-weight:700;color:#f5c842;margin-bottom:4px}
-  .header p{font-size:.85rem;color:#888}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d0d0d;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px}
 
-  /* ── Step 1: choose source ── */
-  #step-choose{width:100%;max-width:400px}
-  .choose-title{font-size:1rem;color:#ccc;text-align:center;margin-bottom:20px}
-  .btn-row{display:flex;gap:12px;width:100%}
-  .btn-src{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px 12px;border-radius:16px;border:2px solid #333;background:#1a1a1a;cursor:pointer;transition:border-color .2s,background .2s;font-size:.9rem;color:#ccc;font-weight:600}
-  .btn-src:active{background:#252525}
-  .btn-src.camera:hover,.btn-src.camera:active{border-color:#4fc3f7;color:#4fc3f7}
-  .btn-src.gallery:hover,.btn-src.gallery:active{border-color:#f5c842;color:#f5c842}
-  .btn-src svg{width:40px;height:40px}
-  .btn-src.camera svg{stroke:#4fc3f7}
-  .btn-src.gallery svg{stroke:#f5c842}
-  .tip{margin-top:20px;padding:14px;background:#1a1a1a;border-radius:12px;font-size:.8rem;color:#777;line-height:1.6;text-align:left}
-  .tip strong{color:#aaa}
-  input[type=file]{display:none}
+.header{text-align:center;margin-bottom:28px;padding-top:8px}
+.header h1{font-size:1.5rem;font-weight:700;color:#f5c842;margin-bottom:4px}
+.header p{font-size:.85rem;color:#888}
 
-  /* ── Step 2: crop ── */
-  #step-crop{display:none;width:100%;max-width:420px}
-  .crop-label{font-size:.9rem;color:#aaa;text-align:center;margin-bottom:10px}
-  .crop-wrap{width:100%;background:#000;border-radius:14px;overflow:hidden;position:relative}
-  .crop-wrap img{display:block;max-width:100%}
-  .crop-actions{display:flex;gap:10px;margin-top:14px}
-  .btn-retake{flex:1;padding:13px;border:2px solid #444;background:transparent;color:#aaa;border-radius:12px;font-size:.9rem;font-weight:600;cursor:pointer}
-  .btn-retake:active{background:#1a1a1a}
-  .btn-generate{flex:2;padding:13px;background:#f5c842;color:#111;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity .2s}
-  .btn-generate:disabled{opacity:.5;cursor:not-allowed}
-  .btn-generate:active{opacity:.85}
+/* Step 1 */
+#step-choose{width:100%;max-width:400px}
+.choose-title{font-size:1rem;color:#ccc;text-align:center;margin-bottom:20px}
+.btn-row{display:flex;gap:12px;width:100%}
 
-  /* ── Step 3: progress / done ── */
-  #step-done{display:none;width:100%;max-width:400px;text-align:center}
-  .progress-box{padding:32px 20px;background:#1a1a1a;border-radius:16px}
-  .spinner{width:48px;height:48px;border:4px solid rgba(245,200,66,.2);border-top-color:#f5c842;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .progress-text{color:#f5c842;font-weight:600;font-size:1rem}
-  .success-box{padding:32px 20px;background:#0d2b0d;border-radius:16px;border:1px solid #2d5a2d}
-  .success-icon{font-size:3rem;margin-bottom:12px}
-  .success-title{font-size:1.2rem;font-weight:700;color:#6efb6e;margin-bottom:8px}
-  .success-sub{font-size:.9rem;color:#5dc05d}
-  .error-box{padding:24px 20px;background:#2b0d0d;border-radius:16px;border:1px solid #5a2d2d;margin-bottom:16px}
-  .error-text{color:#f87;font-size:.9rem;margin-bottom:14px}
-  .btn-retry{padding:12px 24px;background:#f5c842;color:#111;border:none;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer}
+/* KEY FIX: label acts as the button — wraps the file input directly */
+.btn-label{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px 12px;border-radius:16px;border:2px solid #333;background:#1a1a1a;cursor:pointer;font-size:.9rem;color:#ccc;font-weight:600;transition:border-color .15s,background .15s;user-select:none;-webkit-user-select:none}
+.btn-label:active{background:#252525;transform:scale(.97)}
+.btn-label.camera{border-color:#2a4a5a}
+.btn-label.camera:active,.btn-label.camera:focus-within{border-color:#4fc3f7;color:#4fc3f7}
+.btn-label.gallery{border-color:#4a4a1a}
+.btn-label.gallery:active,.btn-label.gallery:focus-within{border-color:#f5c842;color:#f5c842}
+.btn-label svg{width:40px;height:40px}
+.btn-label.camera svg{stroke:#4fc3f7}
+.btn-label.gallery svg{stroke:#f5c842}
+
+/* Hide input but keep it accessible (NOT display:none which blocks clicks in WebView) */
+.btn-label input[type=file]{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;pointer-events:none}
+
+.tip{margin-top:20px;padding:14px;background:#1a1a1a;border-radius:12px;font-size:.8rem;color:#777;line-height:1.7;text-align:left}
+.tip strong{color:#aaa;display:block;margin-bottom:4px}
+
+/* Step 2 */
+#step-crop{display:none;width:100%;max-width:420px}
+.crop-hint{font-size:.85rem;color:#888;text-align:center;margin-bottom:10px}
+.crop-wrap{width:100%;background:#000;border-radius:14px;overflow:hidden}
+.crop-wrap img{display:block;max-width:100%;max-height:60vh}
+.crop-actions{display:flex;gap:10px;margin-top:14px}
+.btn-retake{flex:1;padding:14px;border:2px solid #444;background:transparent;color:#aaa;border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer}
+.btn-retake:active{background:#1a1a1a}
+.btn-generate{flex:2;padding:14px;background:#f5c842;color:#111;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer}
+.btn-generate:disabled{opacity:.5;cursor:not-allowed}
+.btn-generate:active{opacity:.85}
+
+/* Step 3 */
+#step-done{display:none;width:100%;max-width:400px;text-align:center}
+.progress-box{padding:36px 20px;background:#1a1a1a;border-radius:16px}
+.spinner{width:52px;height:52px;border:4px solid rgba(245,200,66,.15);border-top-color:#f5c842;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-text{color:#f5c842;font-weight:600;font-size:1rem}
+.success-box{padding:36px 20px;background:#0d2b0d;border-radius:16px;border:1px solid #2d5a2d}
+.success-icon{font-size:3.5rem;margin-bottom:12px}
+.success-title{font-size:1.3rem;font-weight:700;color:#6efb6e;margin-bottom:8px}
+.success-sub{font-size:.9rem;color:#5dc05d;line-height:1.5}
+.error-box{padding:24px 20px;background:#2b0d0d;border-radius:16px;border:1px solid #5a2d2d}
+.error-text{color:#f87;font-size:.9rem;margin-bottom:16px;line-height:1.5}
+.btn-retry{padding:12px 28px;background:#f5c842;color:#111;border:none;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer}
 </style>
 </head>
 <body>
@@ -118,52 +125,55 @@ router.get('/:token', (req, res) => {
   <p>We The Leaders — Digital Member ID Card</p>
 </div>
 
-<!-- Step 1: Choose source -->
+<!-- STEP 1: Choose source -->
 <div id="step-choose">
-  <p class="choose-title">How would you like to add your photo?</p>
+  <p class="choose-title">Choose how to add your photo</p>
   <div class="btn-row">
-    <div class="btn-src camera" onclick="openCamera()">
+
+    <!-- Camera button — label wraps input directly, no JS .click() needed -->
+    <label class="btn-label camera">
+      <input type="file" accept="image/*" capture="environment" id="input-camera"/>
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
         <circle cx="12" cy="13" r="4"/>
       </svg>
-      Open Camera
-    </div>
-    <div class="btn-src gallery" onclick="openGallery()">
+      Camera
+    </label>
+
+    <!-- Gallery button -->
+    <label class="btn-label gallery">
+      <input type="file" accept="image/*" id="input-gallery"/>
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2"/>
         <circle cx="8.5" cy="8.5" r="1.5"/>
         <polyline points="21 15 16 10 5 21"/>
       </svg>
-      Upload File
-    </div>
+      Gallery
+    </label>
+
   </div>
   <div class="tip">
-    <strong>Tips for a good photo:</strong><br>
-    • Face clearly visible, good lighting<br>
+    <strong>Tips for a good photo</strong>
+    • Clear face, good lighting<br>
     • Plain or simple background<br>
     • No sunglasses or hat<br>
-    • Portrait orientation preferred
+    • Portrait / vertical photo preferred
   </div>
 </div>
 
-<!-- Hidden file inputs -->
-<input type="file" id="input-camera"  accept="image/*" capture="user">
-<input type="file" id="input-gallery" accept="image/*">
-
-<!-- Step 2: Crop -->
+<!-- STEP 2: Crop -->
 <div id="step-crop">
-  <p class="crop-label">Drag to reposition • Pinch to zoom</p>
+  <p class="crop-hint">Drag to reposition &nbsp;•&nbsp; Pinch to zoom</p>
   <div class="crop-wrap">
-    <img id="crop-img" src="" alt="crop"/>
+    <img id="crop-img" src="" alt=""/>
   </div>
   <div class="crop-actions">
     <button class="btn-retake" onclick="retake()">↩ Retake</button>
-    <button class="btn-generate" id="btn-generate" onclick="submitPhoto()">Generate My Card ✨</button>
+    <button class="btn-generate" id="btn-generate" onclick="submitPhoto()">Generate Card ✨</button>
   </div>
 </div>
 
-<!-- Step 3: Done -->
+<!-- STEP 3: Processing / Done -->
 <div id="step-done">
   <div id="progress-box" class="progress-box">
     <div class="spinner"></div>
@@ -172,11 +182,11 @@ router.get('/:token', (req, res) => {
   <div id="success-box" class="success-box" style="display:none">
     <div class="success-icon">🎉</div>
     <div class="success-title">Card Generated!</div>
-    <div class="success-sub">Check your WhatsApp — your Digital Member ID Card has been sent!</div>
+    <div class="success-sub">Check your WhatsApp —<br>your Digital Member ID Card has been sent!</div>
   </div>
   <div id="error-box" class="error-box" style="display:none">
-    <div class="error-text" id="error-text">Something went wrong.</div>
-    <button class="btn-retry" onclick="retake()">Try Again</button>
+    <div class="error-text" id="error-text">Something went wrong. Please try again.</div>
+    <button class="btn-retry" onclick="retake()">↩ Try Again</button>
   </div>
 </div>
 
@@ -185,128 +195,126 @@ router.get('/:token', (req, res) => {
 const TOKEN = ${JSON.stringify(TOKEN)};
 let cropper = null;
 
-function openCamera() {
-  document.getElementById('input-camera').value = '';
-  document.getElementById('input-camera').click();
-}
-function openGallery() {
-  document.getElementById('input-gallery').value = '';
-  document.getElementById('input-gallery').click();
-}
-
-document.getElementById('input-camera').addEventListener('change', function() {
-  if (this.files && this.files[0]) loadImage(this.files[0]);
-});
-document.getElementById('input-gallery').addEventListener('change', function() {
-  if (this.files && this.files[0]) loadImage(this.files[0]);
-});
-
-function loadImage(file) {
-  if (!file.type.startsWith('image/')) {
-    alert('Please select an image file.');
-    return;
-  }
+function onFileSelected(file) {
+  if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
   reader.onload = function(e) {
     const img = document.getElementById('crop-img');
-    img.src = e.target.result;
 
-    // Destroy old cropper if any
-    if (cropper) { cropper.destroy(); cropper = null; }
+    // Destroy previous cropper if any
+    if (cropper) { try { cropper.destroy(); } catch(_){} cropper = null; }
+    img.src = '';
 
-    document.getElementById('step-choose').style.display = 'none';
-    document.getElementById('step-crop').style.display   = 'block';
-    document.getElementById('step-done').style.display   = 'none';
+    show('step-crop');
 
-    // Init Cropper.js after image loads
-    img.onload = function() {
-      cropper = new Cropper(img, {
-        aspectRatio:   3 / 4,        // ID card photo ratio
-        viewMode:      1,            // restrict crop box within canvas
-        dragMode:      'move',       // move image, not crop box
-        autoCropArea:  0.8,
-        responsive:    true,
-        restore:       false,
-        guides:        true,
-        center:        true,
-        highlight:     false,
-        cropBoxMovable:   true,
-        cropBoxResizable: true,
-        toggleDragModeOnDblclick: false,
-        background: false,
-      });
-    };
-    // Trigger onload if already loaded
-    if (img.complete) img.onload();
+    // Set src and init cropper after paint
+    requestAnimationFrame(function() {
+      img.onload = function() {
+        img.onload = null;
+        try {
+          cropper = new Cropper(img, {
+            aspectRatio:      3 / 4,
+            viewMode:         1,
+            dragMode:         'move',
+            autoCropArea:     0.85,
+            responsive:       true,
+            restore:          false,
+            guides:           true,
+            center:           true,
+            highlight:        false,
+            cropBoxMovable:   true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            background:       false,
+          });
+        } catch(err) {
+          showError('Could not load image. Please try a different photo.');
+        }
+      };
+      img.src = e.target.result;
+    });
   };
+  reader.onerror = function() { showError('Could not read image file.'); };
   reader.readAsDataURL(file);
 }
 
+// Wire up both inputs
+document.getElementById('input-camera').addEventListener('change', function() {
+  if (this.files && this.files[0]) onFileSelected(this.files[0]);
+  this.value = ''; // reset so same file can be re-selected
+});
+document.getElementById('input-gallery').addEventListener('change', function() {
+  if (this.files && this.files[0]) onFileSelected(this.files[0]);
+  this.value = '';
+});
+
 function retake() {
-  if (cropper) { cropper.destroy(); cropper = null; }
+  if (cropper) { try { cropper.destroy(); } catch(_){} cropper = null; }
   document.getElementById('crop-img').src = '';
-  document.getElementById('step-choose').style.display = 'block';
-  document.getElementById('step-crop').style.display   = 'none';
-  document.getElementById('step-done').style.display   = 'none';
-  document.getElementById('success-box').style.display = 'none';
-  document.getElementById('error-box').style.display   = 'none';
-  document.getElementById('progress-box').style.display = 'block';
   document.getElementById('btn-generate').disabled = false;
-}
-
-async function submitPhoto() {
-  if (!cropper) return;
-  const btn = document.getElementById('btn-generate');
-  btn.disabled = true;
-
-  document.getElementById('step-crop').style.display = 'none';
-  document.getElementById('step-done').style.display = 'block';
   document.getElementById('progress-box').style.display = 'block';
   document.getElementById('success-box').style.display  = 'none';
   document.getElementById('error-box').style.display    = 'none';
-  document.getElementById('progress-text').textContent  = 'Cropping photo…';
+  show('step-choose');
+}
+
+async function submitPhoto() {
+  if (!cropper) { showError('No image loaded. Please go back and select a photo.'); return; }
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true;
+
+  show('step-done');
+  document.getElementById('progress-box').style.display = 'block';
+  document.getElementById('success-box').style.display  = 'none';
+  document.getElementById('error-box').style.display    = 'none';
+  setProgress('Cropping photo…');
 
   try {
-    // Get cropped canvas at 600×800
-    const croppedCanvas = cropper.getCroppedCanvas({ width: 600, height: 800, imageSmoothingQuality: 'high' });
+    const canvas = cropper.getCroppedCanvas({ width: 600, height: 800, imageSmoothingQuality: 'high' });
+    if (!canvas) throw new Error('Crop failed. Please retake the photo.');
 
-    document.getElementById('progress-text').textContent = 'Uploading photo…';
+    setProgress('Uploading…');
 
-    const blob = await new Promise((resolve, reject) => {
-      croppedCanvas.toBlob(b => {
-        if (b) resolve(b);
-        else reject(new Error('Canvas toBlob failed'));
+    const blob = await new Promise(function(resolve, reject) {
+      canvas.toBlob(function(b) {
+        if (b) resolve(b); else reject(new Error('Could not process image.'));
       }, 'image/jpeg', 0.92);
     });
 
-    document.getElementById('progress-text').textContent = 'Generating your ID card…';
+    setProgress('Generating your ID card…');
 
     const form = new FormData();
     form.append('photo', blob, 'photo.jpg');
 
-    const resp = await fetch('/upload/' + TOKEN, {
-      method: 'POST',
-      body:   form,
-    });
+    const resp = await fetch('/upload/' + TOKEN, { method: 'POST', body: form });
+    const text = await resp.text();
 
-    if (!resp.ok) {
-      const txt = await resp.text();
-      throw new Error('Server error ' + resp.status + ': ' + txt.slice(0, 100));
-    }
-
-    const data = await resp.json();
+    let data;
+    try { data = JSON.parse(text); } catch(_) { throw new Error('Server error: ' + text.slice(0, 80)); }
     if (!data.success) throw new Error(data.message || 'Upload failed');
 
     document.getElementById('progress-box').style.display = 'none';
     document.getElementById('success-box').style.display  = 'block';
 
-  } catch (err) {
-    console.error('Upload error:', err);
-    document.getElementById('progress-box').style.display = 'none';
-    document.getElementById('error-box').style.display    = 'block';
-    document.getElementById('error-text').textContent     = '❌ ' + (err.message || 'Upload failed. Please try again.');
+  } catch(err) {
+    showError(err.message || 'Upload failed. Please try again.');
     btn.disabled = false;
   }
+}
+
+function show(id) {
+  ['step-choose','step-crop','step-done'].forEach(function(s) {
+    document.getElementById(s).style.display = s === id ? 'block' : 'none';
+  });
+}
+function setProgress(msg) {
+  document.getElementById('progress-text').textContent = msg;
+}
+function showError(msg) {
+  document.getElementById('progress-box').style.display = 'none';
+  document.getElementById('error-box').style.display    = 'block';
+  document.getElementById('error-text').textContent     = '❌ ' + msg;
+  show('step-done');
 }
 </script>
 </body>
