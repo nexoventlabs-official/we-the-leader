@@ -14,9 +14,9 @@ const { uploadPhoto, uploadCard, uploadBackCard } = require('../services/cloudin
 const { generateCard, generateBackCard }          = require('../services/cardGenerator');
 const { sendTextMessage, sendImageMessage }       = require('../services/whatsappService');
 
-// ── Token helpers — HMAC-SHA256(mobile:epic) signed with SESSION_SECRET ──
+// ── Token helpers ─────────────────────────────────────────────────
 function makeUploadToken(mobile, epicNo) {
-  const payload = `${mobile}:${epicNo}:${Math.floor(Date.now() / 3_600_000)}`; // 1-hour bucket
+  const payload = `${mobile}:${epicNo}:${Math.floor(Date.now() / 3_600_000)}`;
   const sig     = crypto.createHmac('sha256', config.sessionSecret).update(payload).digest('hex').slice(0, 16);
   return Buffer.from(`${mobile}:${epicNo}:${sig}`).toString('base64url');
 }
@@ -27,13 +27,14 @@ function verifyUploadToken(token) {
     const parts   = decoded.split(':');
     if (parts.length !== 3) return null;
     const [mobile, epicNo, sig] = parts;
-    // Accept current hour and previous hour (handles boundary)
     for (const hour of [0, -1]) {
       const payload  = `${mobile}:${epicNo}:${Math.floor(Date.now() / 3_600_000) + hour}`;
       const expected = crypto.createHmac('sha256', config.sessionSecret).update(payload).digest('hex').slice(0, 16);
-      if (crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
-        return { mobile, epicNo };
-      }
+      try {
+        if (crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
+          return { mobile, epicNo };
+        }
+      } catch (_) {}
     }
     return null;
   } catch {
@@ -41,241 +42,290 @@ function verifyUploadToken(token) {
   }
 }
 
-// ── GET /upload/:token  — serve HTML upload page ──────────────────
+// ── GET /upload/:token ────────────────────────────────────────────
 router.get('/:token', (req, res) => {
   const info = verifyUploadToken(req.params.token);
-  if (!info) return res.status(410).send('<h2>Link expired or invalid. Please message the WhatsApp bot again.</h2>');
+  if (!info) {
+    return res.status(410).send(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#fff">
+      <h2 style="color:#f5c842">⚠️ Link Expired</h2>
+      <p>This link has expired or is invalid.<br>Please message the WhatsApp bot again to get a new link.</p>
+    </body></html>`);
+  }
+
+  const TOKEN = req.params.token;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Upload Your Photo — WTL Member Card</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+<title>Upload Photo — WTL Member Card</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"/>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Barlow',sans-serif;background:#111;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
-  .card{background:#1a1a1a;border-radius:16px;padding:32px 24px;width:100%;max-width:420px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.5)}
-  h1{font-size:1.4rem;font-weight:700;margin-bottom:4px;color:#f5c842}
-  .sub{font-size:.9rem;color:#aaa;margin-bottom:24px}
-  #drop-zone{border:2px dashed #444;border-radius:12px;padding:32px 16px;cursor:pointer;transition:border-color .2s;margin-bottom:16px;position:relative;overflow:hidden;background:#222}
-  #drop-zone:hover,#drop-zone.drag-over{border-color:#f5c842}
-  #drop-zone p{color:#888;font-size:.95rem}
-  #drop-zone img{display:none;width:100%;border-radius:8px;object-fit:cover}
-  #file-input{display:none}
-  #crop-area{display:none;margin-bottom:16px;position:relative;background:#000;border-radius:12px;overflow:hidden;touch-action:none}
-  #crop-canvas{display:block;width:100%;border-radius:12px}
-  .crop-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;border-radius:12px;box-shadow:inset 0 0 0 9999px rgba(0,0,0,0.5)}
-  #crop-frame{position:absolute;border:2px solid #f5c842;border-radius:4px;cursor:move}
-  #btn-upload{display:none;width:100%;padding:14px;background:#f5c842;color:#111;font-size:1rem;font-weight:700;border:none;border-radius:10px;cursor:pointer;transition:opacity .2s}
-  #btn-upload:hover{opacity:.85}
-  #btn-upload:disabled{opacity:.5;cursor:not-allowed}
-  #progress{display:none;margin-top:16px;color:#f5c842;font-weight:600}
-  .spinner{display:inline-block;width:18px;height:18px;border:3px solid rgba(245,200,66,.3);border-top-color:#f5c842;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d0d0d;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px}
+  
+  .header{text-align:center;margin-bottom:24px;padding-top:8px}
+  .header h1{font-size:1.5rem;font-weight:700;color:#f5c842;margin-bottom:4px}
+  .header p{font-size:.85rem;color:#888}
+
+  /* ── Step 1: choose source ── */
+  #step-choose{width:100%;max-width:400px}
+  .choose-title{font-size:1rem;color:#ccc;text-align:center;margin-bottom:20px}
+  .btn-row{display:flex;gap:12px;width:100%}
+  .btn-src{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px 12px;border-radius:16px;border:2px solid #333;background:#1a1a1a;cursor:pointer;transition:border-color .2s,background .2s;font-size:.9rem;color:#ccc;font-weight:600}
+  .btn-src:active{background:#252525}
+  .btn-src.camera:hover,.btn-src.camera:active{border-color:#4fc3f7;color:#4fc3f7}
+  .btn-src.gallery:hover,.btn-src.gallery:active{border-color:#f5c842;color:#f5c842}
+  .btn-src svg{width:40px;height:40px}
+  .btn-src.camera svg{stroke:#4fc3f7}
+  .btn-src.gallery svg{stroke:#f5c842}
+  .tip{margin-top:20px;padding:14px;background:#1a1a1a;border-radius:12px;font-size:.8rem;color:#777;line-height:1.6;text-align:left}
+  .tip strong{color:#aaa}
+  input[type=file]{display:none}
+
+  /* ── Step 2: crop ── */
+  #step-crop{display:none;width:100%;max-width:420px}
+  .crop-label{font-size:.9rem;color:#aaa;text-align:center;margin-bottom:10px}
+  .crop-wrap{width:100%;background:#000;border-radius:14px;overflow:hidden;position:relative}
+  .crop-wrap img{display:block;max-width:100%}
+  .crop-actions{display:flex;gap:10px;margin-top:14px}
+  .btn-retake{flex:1;padding:13px;border:2px solid #444;background:transparent;color:#aaa;border-radius:12px;font-size:.9rem;font-weight:600;cursor:pointer}
+  .btn-retake:active{background:#1a1a1a}
+  .btn-generate{flex:2;padding:13px;background:#f5c842;color:#111;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity .2s}
+  .btn-generate:disabled{opacity:.5;cursor:not-allowed}
+  .btn-generate:active{opacity:.85}
+
+  /* ── Step 3: progress / done ── */
+  #step-done{display:none;width:100%;max-width:400px;text-align:center}
+  .progress-box{padding:32px 20px;background:#1a1a1a;border-radius:16px}
+  .spinner{width:48px;height:48px;border:4px solid rgba(245,200,66,.2);border-top-color:#f5c842;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
   @keyframes spin{to{transform:rotate(360deg)}}
-  #success{display:none;margin-top:20px;padding:20px;background:#1d3a1d;border-radius:12px;color:#6efb6e;font-weight:600}
-  #error-msg{display:none;margin-top:12px;color:#f87;font-size:.9rem}
+  .progress-text{color:#f5c842;font-weight:600;font-size:1rem}
+  .success-box{padding:32px 20px;background:#0d2b0d;border-radius:16px;border:1px solid #2d5a2d}
+  .success-icon{font-size:3rem;margin-bottom:12px}
+  .success-title{font-size:1.2rem;font-weight:700;color:#6efb6e;margin-bottom:8px}
+  .success-sub{font-size:.9rem;color:#5dc05d}
+  .error-box{padding:24px 20px;background:#2b0d0d;border-radius:16px;border:1px solid #5a2d2d;margin-bottom:16px}
+  .error-text{color:#f87;font-size:.9rem;margin-bottom:14px}
+  .btn-retry{padding:12px 24px;background:#f5c842;color:#111;border:none;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer}
 </style>
 </head>
 <body>
-<div class="card">
+
+<div class="header">
   <h1>📸 Upload Your Photo</h1>
-  <p class="sub">We The Leaders — Digital Member ID Card</p>
-
-  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
-    <img id="preview"/>
-    <p id="drop-text">Tap here to select your photo<br/><small>Passport-size photo recommended</small></p>
-  </div>
-  <input type="file" id="file-input" accept="image/*" capture="user"/>
-
-  <div id="crop-area">
-    <canvas id="crop-canvas"></canvas>
-    <div class="crop-overlay"></div>
-    <div id="crop-frame"></div>
-  </div>
-
-  <button id="btn-upload" onclick="submitPhoto()">Generate My ID Card</button>
-  <div id="progress"><span class="spinner"></span><span id="progress-text">Uploading…</span></div>
-  <div id="success">✅ Card generated! Check your WhatsApp — your ID card has been sent.</div>
-  <div id="error-msg"></div>
+  <p>We The Leaders — Digital Member ID Card</p>
 </div>
 
+<!-- Step 1: Choose source -->
+<div id="step-choose">
+  <p class="choose-title">How would you like to add your photo?</p>
+  <div class="btn-row">
+    <div class="btn-src camera" onclick="openCamera()">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+      Open Camera
+    </div>
+    <div class="btn-src gallery" onclick="openGallery()">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+      Upload File
+    </div>
+  </div>
+  <div class="tip">
+    <strong>Tips for a good photo:</strong><br>
+    • Face clearly visible, good lighting<br>
+    • Plain or simple background<br>
+    • No sunglasses or hat<br>
+    • Portrait orientation preferred
+  </div>
+</div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="input-camera"  accept="image/*" capture="user">
+<input type="file" id="input-gallery" accept="image/*">
+
+<!-- Step 2: Crop -->
+<div id="step-crop">
+  <p class="crop-label">Drag to reposition • Pinch to zoom</p>
+  <div class="crop-wrap">
+    <img id="crop-img" src="" alt="crop"/>
+  </div>
+  <div class="crop-actions">
+    <button class="btn-retake" onclick="retake()">↩ Retake</button>
+    <button class="btn-generate" id="btn-generate" onclick="submitPhoto()">Generate My Card ✨</button>
+  </div>
+</div>
+
+<!-- Step 3: Done -->
+<div id="step-done">
+  <div id="progress-box" class="progress-box">
+    <div class="spinner"></div>
+    <div class="progress-text" id="progress-text">Uploading photo…</div>
+  </div>
+  <div id="success-box" class="success-box" style="display:none">
+    <div class="success-icon">🎉</div>
+    <div class="success-title">Card Generated!</div>
+    <div class="success-sub">Check your WhatsApp — your Digital Member ID Card has been sent!</div>
+  </div>
+  <div id="error-box" class="error-box" style="display:none">
+    <div class="error-text" id="error-text">Something went wrong.</div>
+    <button class="btn-retry" onclick="retake()">Try Again</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script>
-const TOKEN = ${JSON.stringify(req.params.token)};
-let croppedBlob = null;
-let originalFile = null;
+const TOKEN = ${JSON.stringify(TOKEN)};
+let cropper = null;
 
-// ── File select ─────────────────────────────────────────────────
-document.getElementById('file-input').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  originalFile = file;
-  showCropper(file);
+function openCamera() {
+  document.getElementById('input-camera').value = '';
+  document.getElementById('input-camera').click();
+}
+function openGallery() {
+  document.getElementById('input-gallery').value = '';
+  document.getElementById('input-gallery').click();
+}
+
+document.getElementById('input-camera').addEventListener('change', function() {
+  if (this.files && this.files[0]) loadImage(this.files[0]);
+});
+document.getElementById('input-gallery').addEventListener('change', function() {
+  if (this.files && this.files[0]) loadImage(this.files[0]);
 });
 
-// ── Drag-over styling ────────────────────────────────────────────
-const dz = document.getElementById('drop-zone');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
-dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) { originalFile = file; showCropper(file); }
-});
+function loadImage(file) {
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('crop-img');
+    img.src = e.target.result;
 
-// ── Simple crop (drag rect on canvas) ────────────────────────────
-let img = new Image();
-let canvas, ctx;
-// Card photo ratio ≈ 3:4 (portrait)
-const RATIO = 3 / 4;
-let cropX, cropY, cropW, cropH;
-let dragging = false, dragStartX, dragStartY, origCropX, origCropY;
+    // Destroy old cropper if any
+    if (cropper) { cropper.destroy(); cropper = null; }
 
-function showCropper(file) {
-  const url = URL.createObjectURL(file);
-  img.onload = () => {
-    document.getElementById('crop-area').style.display = 'block';
-    canvas = document.getElementById('crop-canvas');
-    const maxW = Math.min(360, window.innerWidth - 48);
-    const scale = maxW / img.width;
-    canvas.width  = Math.round(img.width  * scale);
-    canvas.height = Math.round(img.height * scale);
-    canvas.style.width  = canvas.width  + 'px';
-    canvas.style.height = canvas.height + 'px';
-    ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    // Init crop rect centre of image, 3:4 ratio
-    cropW = Math.min(canvas.width * 0.7, canvas.height * 0.7 * RATIO);
-    cropH = cropW / RATIO;
-    cropX = (canvas.width  - cropW) / 2;
-    cropY = (canvas.height - cropH) / 2;
-    drawCropFrame();
-    document.getElementById('drop-zone').style.display = 'none';
-    document.getElementById('btn-upload').style.display = 'block';
-    prepareCrop();
+    document.getElementById('step-choose').style.display = 'none';
+    document.getElementById('step-crop').style.display   = 'block';
+    document.getElementById('step-done').style.display   = 'none';
+
+    // Init Cropper.js after image loads
+    img.onload = function() {
+      cropper = new Cropper(img, {
+        aspectRatio:   3 / 4,        // ID card photo ratio
+        viewMode:      1,            // restrict crop box within canvas
+        dragMode:      'move',       // move image, not crop box
+        autoCropArea:  0.8,
+        responsive:    true,
+        restore:       false,
+        guides:        true,
+        center:        true,
+        highlight:     false,
+        cropBoxMovable:   true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        background: false,
+      });
+    };
+    // Trigger onload if already loaded
+    if (img.complete) img.onload();
   };
-  img.src = url;
+  reader.readAsDataURL(file);
 }
 
-function drawCropFrame() {
-  const frame = document.getElementById('crop-frame');
-  const rect  = canvas.getBoundingClientRect();
-  const scaleX = rect.width  / canvas.width;
-  const scaleY = rect.height / canvas.height;
-  frame.style.left   = (cropX * scaleX) + 'px';
-  frame.style.top    = (cropY * scaleY) + 'px';
-  frame.style.width  = (cropW * scaleX) + 'px';
-  frame.style.height = (cropH * scaleY) + 'px';
-  frame.style.display = 'block';
+function retake() {
+  if (cropper) { cropper.destroy(); cropper = null; }
+  document.getElementById('crop-img').src = '';
+  document.getElementById('step-choose').style.display = 'block';
+  document.getElementById('step-crop').style.display   = 'none';
+  document.getElementById('step-done').style.display   = 'none';
+  document.getElementById('success-box').style.display = 'none';
+  document.getElementById('error-box').style.display   = 'none';
+  document.getElementById('progress-box').style.display = 'block';
+  document.getElementById('btn-generate').disabled = false;
 }
 
-// ── Drag crop frame ───────────────────────────────────────────────
-function prepareCrop() {
-  const frame = document.getElementById('crop-frame');
-  const area  = document.getElementById('crop-area');
-
-  function onStart(e) {
-    dragging = true;
-    const touch = e.touches ? e.touches[0] : e;
-    const rect  = canvas.getBoundingClientRect();
-    dragStartX = touch.clientX - rect.left;
-    dragStartY = touch.clientY - rect.top;
-    const scaleX = canvas.width  / rect.width;
-    const scaleY = canvas.height / rect.height;
-    dragStartX *= scaleX; dragStartY *= scaleY;
-    origCropX = cropX; origCropY = cropY;
-    e.preventDefault();
-  }
-  function onMove(e) {
-    if (!dragging) return;
-    const touch = e.touches ? e.touches[0] : e;
-    const rect  = canvas.getBoundingClientRect();
-    let mx = touch.clientX - rect.left;
-    let my = touch.clientY - rect.top;
-    const scaleX = canvas.width  / rect.width;
-    const scaleY = canvas.height / rect.height;
-    mx *= scaleX; my *= scaleY;
-    cropX = Math.max(0, Math.min(canvas.width  - cropW, origCropX + mx - dragStartX));
-    cropY = Math.max(0, Math.min(canvas.height - cropH, origCropY + my - dragStartY));
-    drawCropFrame();
-    e.preventDefault();
-  }
-  function onEnd() { dragging = false; }
-
-  frame.addEventListener('mousedown',  onStart);
-  frame.addEventListener('touchstart', onStart, {passive:false});
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('touchmove', onMove, {passive:false});
-  window.addEventListener('mouseup',   onEnd);
-  window.addEventListener('touchend',  onEnd);
-}
-
-// ── Crop to blob ──────────────────────────────────────────────────
-function getCroppedBlob() {
-  return new Promise(resolve => {
-    const out = document.createElement('canvas');
-    // Output 600x800 (3:4)
-    out.width  = 600;
-    out.height = 800;
-    const octx = out.getContext('2d');
-    const scaleX = img.width  / canvas.width;
-    const scaleY = img.height / canvas.height;
-    octx.drawImage(img,
-      cropX * scaleX, cropY * scaleY, cropW * scaleX, cropH * scaleY,
-      0, 0, 600, 800
-    );
-    out.toBlob(resolve, 'image/jpeg', 0.92);
-  });
-}
-
-// ── Submit ────────────────────────────────────────────────────────
 async function submitPhoto() {
-  const btn = document.getElementById('btn-upload');
+  if (!cropper) return;
+  const btn = document.getElementById('btn-generate');
   btn.disabled = true;
-  document.getElementById('progress').style.display = 'block';
-  document.getElementById('progress-text').textContent = 'Cropping photo…';
-  document.getElementById('error-msg').style.display = 'none';
+
+  document.getElementById('step-crop').style.display = 'none';
+  document.getElementById('step-done').style.display = 'block';
+  document.getElementById('progress-box').style.display = 'block';
+  document.getElementById('success-box').style.display  = 'none';
+  document.getElementById('error-box').style.display    = 'none';
+  document.getElementById('progress-text').textContent  = 'Cropping photo…';
 
   try {
-    const blob = await getCroppedBlob();
-    document.getElementById('progress-text').textContent = 'Uploading & generating card…';
+    // Get cropped canvas at 600×800
+    const croppedCanvas = cropper.getCroppedCanvas({ width: 600, height: 800, imageSmoothingQuality: 'high' });
+
+    document.getElementById('progress-text').textContent = 'Uploading photo…';
+
+    const blob = await new Promise((resolve, reject) => {
+      croppedCanvas.toBlob(b => {
+        if (b) resolve(b);
+        else reject(new Error('Canvas toBlob failed'));
+      }, 'image/jpeg', 0.92);
+    });
+
+    document.getElementById('progress-text').textContent = 'Generating your ID card…';
+
     const form = new FormData();
     form.append('photo', blob, 'photo.jpg');
 
-    const resp = await fetch('/upload/' + TOKEN, { method: 'POST', body: form });
-    const data = await resp.json();
+    const resp = await fetch('/upload/' + TOKEN, {
+      method: 'POST',
+      body:   form,
+    });
 
-    if (data.success) {
-      document.getElementById('progress').style.display = 'none';
-      document.getElementById('crop-area').style.display = 'none';
-      btn.style.display = 'none';
-      document.getElementById('success').style.display = 'block';
-    } else {
-      throw new Error(data.message || 'Upload failed');
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error('Server error ' + resp.status + ': ' + txt.slice(0, 100));
     }
+
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.message || 'Upload failed');
+
+    document.getElementById('progress-box').style.display = 'none';
+    document.getElementById('success-box').style.display  = 'block';
+
   } catch (err) {
-    document.getElementById('progress').style.display = 'none';
+    console.error('Upload error:', err);
+    document.getElementById('progress-box').style.display = 'none';
+    document.getElementById('error-box').style.display    = 'block';
+    document.getElementById('error-text').textContent     = '❌ ' + (err.message || 'Upload failed. Please try again.');
     btn.disabled = false;
-    const em = document.getElementById('error-msg');
-    em.textContent = '❌ ' + err.message;
-    em.style.display = 'block';
   }
 }
 </script>
 </body>
 </html>`;
 
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
 });
 
-// ── POST /upload/:token  — receive photo, generate card, send WA ─
+// ── POST /upload/:token ───────────────────────────────────────────
 const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 15 * 1024 * 1024 },
+});
 
 router.post('/:token', upload.single('photo'), async (req, res) => {
   const info = verifyUploadToken(req.params.token);
-  if (!info) return res.status(410).json({ success: false, message: 'Link expired. Message the bot again.' });
+  if (!info) return res.status(410).json({ success: false, message: 'Link expired. Message the bot again to get a new link.' });
   if (!req.file) return res.status(400).json({ success: false, message: 'No photo received.' });
 
   const { mobile, epicNo } = info;
@@ -283,18 +333,18 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
 
   let db;
   try { db = getDb(); } catch (e) {
-    return res.status(500).json({ success: false, message: 'DB unavailable.' });
+    return res.status(500).json({ success: false, message: 'Database unavailable.' });
   }
 
-  // Check pending registration
   const pending = await db.collection('pending_registrations').findOne({ mobile });
   if (!pending) {
     return res.status(400).json({ success: false, message: 'No pending registration found. Please start again by messaging the bot.' });
   }
 
+  // Respond immediately so the browser shows success UI
   res.json({ success: true, message: 'Photo received — generating your card now!' });
 
-  // Async card generation — do not block response
+  // Card generation runs async — does not block the HTTP response
   setImmediate(async () => {
     try {
       await db.collection('pending_registrations').updateOne(
@@ -304,8 +354,9 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
       await sendTextMessage(waTo, '⏳ Generating your Digital Member ID Card… please wait a moment.');
 
       const photoBuffer = req.file.buffer;
-      const ptcCode     = 'PTC-' + require('crypto').randomBytes(4).toString('hex').toUpperCase();
-      const voterData   = {
+      const ptcCode     = 'PTC-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+      const voterData = {
         epic_no:       epicNo,
         EPIC_NO:       epicNo,
         name:          pending.voter_name    || '',
@@ -330,11 +381,18 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
         { EPIC_NO: epicNo },
         {
           $set: {
-            EPIC_NO: epicNo, ptc_code: ptcCode, photo_url: photoUrl,
-            card_url: frontUrl, back_url: backUrl, combined_url: frontUrl,
-            generated_at: now, VOTER_NAME: pending.voter_name || '',
-            ASSEMBLY_NAME: pending.assembly_name || '', DISTRICT_NAME: pending.district || '',
-            MOBILE_NO: mobile, source: 'web_upload',
+            EPIC_NO:       epicNo,
+            ptc_code:      ptcCode,
+            photo_url:     photoUrl,
+            card_url:      frontUrl,
+            back_url:      backUrl,
+            combined_url:  frontUrl,
+            generated_at:  now,
+            VOTER_NAME:    pending.voter_name    || '',
+            ASSEMBLY_NAME: pending.assembly_name || '',
+            DISTRICT_NAME: pending.district      || '',
+            MOBILE_NO:     mobile,
+            source:        'web_upload',
           },
           $setOnInsert: { created_at: now },
         },
@@ -357,14 +415,14 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
 
       await sendImageMessage(waTo, frontUrl, frontCaption);
       await new Promise(r => setTimeout(r, 1000));
-      await sendImageMessage(waTo, backUrl, '🪪 *Your Digital Member ID Card — BACK*\n\nWe The Leaders — Lead the Change');
+      await sendImageMessage(waTo, backUrl,
+        '🪪 *Your Digital Member ID Card — BACK*\n\nWe The Leaders — Lead the Change');
       await sendTextMessage(waTo,
-        `🎉 *Registration Complete!*\n\nWelcome to We The Leaders, *${pending.voter_name || 'Member'}*!\n\nYour PTC Code: *${ptcCode}*\n\nShare and invite others to join!`,
-      );
+        `🎉 *Registration Complete!*\n\nWelcome to We The Leaders, *${pending.voter_name || 'Member'}*!\n\nYour PTC Code: *${ptcCode}*\n\nShare and invite others to join!`);
 
       console.log(`[Upload] Card generated & sent for ${mobile} / ${epicNo}`);
     } catch (err) {
-      console.error(`[Upload] Card generation error for ${mobile}:`, err.message);
+      console.error(`[Upload] Card generation error for ${mobile}:`, err.message, err.stack);
       try {
         await db.collection('pending_registrations').updateOne(
           { mobile }, { $set: { status: 'awaiting_photo' } },
