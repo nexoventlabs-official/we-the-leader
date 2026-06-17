@@ -95,8 +95,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 #step-crop{display:none;width:100%;max-width:420px}
 .crop-hint{font-size:.85rem;color:#888;text-align:center;margin-bottom:10px}
 .crop-wrap{width:100%;background:#000;border-radius:14px;overflow:hidden;position:relative;min-height:300px;display:flex;align-items:center;justify-content:center}
-.crop-wrap img{display:block;max-width:100%;max-height:60vh;object-fit:contain}
-.crop-overlay{position:absolute;pointer-events:none;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.55) inset;border:2px dashed rgba(245,200,66,0.9);width:40%;aspect-ratio:268/384;max-height:86%;}
+.crop-wrap img{display:block;max-width:100%;max-height:60vh;object-fit:contain;touch-action:none;-webkit-user-drag:none}
+.crop-overlay{position:absolute;pointer-events:none;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.55) inset;border:2px dashed rgba(245,200,66,0.9);width:40%;aspect-ratio:268/384;max-height:86%;top:50%;left:12%;transform:translateY(-50%)}
 .crop-overlay:before{content:'';position:absolute;inset:0;border-radius:12px;box-shadow:0 0 0 4px rgba(0,0,0,0.2) inset}
 .crop-actions{display:flex;gap:10px;margin-top:14px}
 .btn-retake{flex:1;padding:14px;border:2px solid #444;background:transparent;color:#aaa;border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer}
@@ -239,7 +239,7 @@ function initCropper(img) {
       highlight:        false,
       cropBoxMovable:   true,
       cropBoxResizable: true,
-      toggleDragModeOnDblclick: false,
+      toggleDragModeOnDblclick: true,
       background:       false,
     });
     // Align crop box to the visual overlay guide if present
@@ -319,7 +319,7 @@ function retake() {
   if (cropper) { try { cropper.destroy(); } catch(_){} cropper = null; }
   document.getElementById('crop-img').src = '';
   document.getElementById('btn-generate').disabled = false;
-  document.getElementById('progress-box').style.display = 'block';
+  document.getElementById('progress-box').style.display = 'none';
   document.getElementById('success-box').style.display  = 'none';
   document.getElementById('error-box').style.display    = 'none';
   show('step-choose');
