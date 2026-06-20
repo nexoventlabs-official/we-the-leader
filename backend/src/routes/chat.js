@@ -941,16 +941,18 @@ router.get('/my-members/:wtlCode', async (req, res) => {
     const members = await db.collection('generated_voters')
       .find(
         { referred_by_wtl: wtlCode },
-        { projection: { FM_NAME_EN: 1, LASTNAME_EN: 1, EPIC_NO: 1, wtl_code: 1, generated_at: 1 } }
+        { projection: { VOTER_NAME: 1, FM_NAME_EN: 1, LASTNAME_EN: 1, EPIC_NO: 1, wtl_code: 1, generated_at: 1, photo_url: 1 } }
       )
       .sort({ generated_at: -1 })
       .limit(50)
       .toArray();
 
     const result = members.map(m => ({
-      name:     `${m.FM_NAME_EN || ''} ${m.LASTNAME_EN || ''}`.trim(),
-      epic_no:  m.EPIC_NO  || '',
-      wtl_code: m.wtl_code || '',
+      name:         m.VOTER_NAME || `${m.FM_NAME_EN || ''} ${m.LASTNAME_EN || ''}`.trim() || 'A Member',
+      epic_no:      m.EPIC_NO || '',
+      wtl_code:     m.wtl_code || '',
+      generated_at: m.generated_at || null,
+      photo_url:    m.photo_url || '',
     }));
 
     return res.json({ success: true, members: result, total: result.length });

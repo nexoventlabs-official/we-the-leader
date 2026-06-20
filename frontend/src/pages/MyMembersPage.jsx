@@ -86,7 +86,8 @@ export default function MyMembersPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, textAlign: 'left' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--color-graphite)' }}>
-                    <th style={{ padding: '12px 8px', color: 'var(--color-ash)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>#</th>
+                    <th style={{ padding: '12px 8px', color: 'var(--color-ash)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', width: 40 }}>#</th>
+                    <th style={{ padding: '12px 8px', color: 'var(--color-ash)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', width: 60 }}>Photo</th>
                     <th style={{ padding: '12px 8px', color: 'var(--color-ash)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>Name</th>
                     <th style={{ padding: '12px 8px', color: 'var(--color-ash)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>EPIC No</th>
                     <th style={{ padding: '12px 8px', color: 'var(--color-ash)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>WTL Code</th>
@@ -98,11 +99,36 @@ export default function MyMembersPage() {
                     const nameVal = m.name || m.VOTER_NAME || `${m.FM_NAME_EN || ''} ${m.LASTNAME_EN || ''}`.trim() || 'A Member'
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.02)', transition: 'background 0.15s' }}>
-                        <td style={{ padding: '14px 8px', color: 'var(--color-ash)' }}>{i + 1}</td>
-                        <td style={{ padding: '14px 8px', fontWeight: 500, color: 'var(--color-chalk)' }}>{nameVal}</td>
-                        <td style={{ padding: '14px 8px', color: 'var(--color-chalk)', fontFamily: 'monospace' }}>{m.epic_no || m.EPIC_NO || '—'}</td>
-                        <td style={{ padding: '14px 8px', color: 'var(--color-signal-mint)', fontWeight: 600, fontFamily: 'monospace' }}>{m.wtl_code || '—'}</td>
-                        <td style={{ padding: '14px 8px', color: 'var(--color-ash)', fontSize: 12 }}>
+                        <td style={{ padding: '14px 8px', color: 'var(--color-ash)', verticalAlign: 'middle' }}>{i + 1}</td>
+                        <td style={{ padding: '8px 8px', verticalAlign: 'middle' }}>
+                          {m.photo_url ? (
+                            <img
+                              src={m.photo_url}
+                              alt={nameVal}
+                              style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--color-graphite)', display: 'block' }}
+                              onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }}
+                            />
+                          ) : null}
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              background: '#1a221d',
+                              border: '1px solid var(--color-graphite)',
+                              display: m.photo_url ? 'none' : 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--color-ash)'
+                            }}
+                          >
+                            <i className="bi bi-person-fill" style={{ fontSize: 16 }} />
+                          </div>
+                        </td>
+                        <td style={{ padding: '14px 8px', fontWeight: 500, color: 'var(--color-chalk)', verticalAlign: 'middle' }}>{nameVal}</td>
+                        <td style={{ padding: '14px 8px', color: 'var(--color-chalk)', fontFamily: 'monospace', verticalAlign: 'middle' }}>{m.epic_no || m.EPIC_NO || '—'}</td>
+                        <td style={{ padding: '14px 8px', color: 'var(--color-signal-mint)', fontWeight: 600, fontFamily: 'monospace', verticalAlign: 'middle' }}>{m.wtl_code || '—'}</td>
+                        <td style={{ padding: '14px 8px', color: 'var(--color-ash)', fontSize: 12, verticalAlign: 'middle' }}>
                           {m.generated_at ? new Date(m.generated_at).toLocaleDateString() : '—'}
                         </td>
                       </tr>
