@@ -640,8 +640,8 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
       // ── Referral attribution ───────────────────────────────────
       // Accept ref=<wtlCode>&rid=<referralId> from the request body
       // (frontend passes them when the user landed via a referral link)
-      const rawRef    = String(req.body.ref  || '').trim();
-      const rawRid    = String(req.body.rid  || '').trim();
+      const rawRef    = String(req.body.ref  || '').trim().toUpperCase();
+      const rawRid    = String(req.body.rid  || '').trim().toUpperCase();
       // Validate format — avoid injecting arbitrary values into DB
       const refWtlOk  = /^WTL-[0-9A-F]{8}$/.test(rawRef);
       const refRidOk  = /^REF-[0-9A-F]{8}$/.test(rawRid);
@@ -665,10 +665,8 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
       // Generate referral link for this new member
       // Preserve existing referral_id if card is being re-generated
       const referralId   = existingGen?.referral_id   || ('REF-' + crypto.randomBytes(4).toString('hex').toUpperCase());
-      const referralBase = config.frontendUrl || config.baseUrl;
-      const referralLink = existingGen?.referral_link
-        ? existingGen.referral_link
-        : (referralBase + '/refer/' + wtlCode + '/' + referralId);
+      const referralBase = config.baseUrl;
+      const referralLink = `${referralBase}/refer/${wtlCode}/${referralId}`;
       const verifyUrl = `${config.baseUrl}/verify/${epicNo}`;
 
 
@@ -882,7 +880,7 @@ router.get('/referral-link/:wtlCode', async (req, res) => {
     }
 
     const rid  = doc.referral_id || ('REF-' + crypto.randomBytes(4).toString('hex').toUpperCase());
-    const referralBase = config.frontendUrl || config.baseUrl;
+    const referralBase = config.baseUrl;
     const link = `${referralBase}/refer/${wtlCode}/${rid}`;
 
     if (!doc.referral_id || doc.referral_link !== link) {

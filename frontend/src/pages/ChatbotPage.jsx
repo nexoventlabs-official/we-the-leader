@@ -10,11 +10,25 @@ import '../styles/chatbot.css'
 const getReferralParams = () => {
   try {
     const p = new URLSearchParams(window.location.search)
-    const ref = p.get('ref') || ''
-    const rid = p.get('rid') || ''
+    let ref = (p.get('ref') || '').trim().toUpperCase()
+    let rid = (p.get('rid') || '').trim().toUpperCase()
     // Validate format before using
-    if (/^WTL-[0-9A-F]{8}$/i.test(ref) && /^REF-[0-9A-F]{8}$/i.test(rid)) {
+    if (/^WTL-[0-9A-F]{8}$/.test(ref) && /^REF-[0-9A-F]{8}$/.test(rid)) {
       return { ref, rid }
+    }
+
+    // Check localStorage as fallback
+    const stored = localStorage.getItem('wtl_referral')
+    if (stored) {
+      const data = JSON.parse(stored)
+      // Check if it's less than 24 hours old
+      if (data && Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        const storedRef = (data.wtlCode || '').trim().toUpperCase()
+        const storedRid = (data.referralId || '').trim().toUpperCase()
+        if (/^WTL-[0-9A-F]{8}$/.test(storedRef) && /^REF-[0-9A-F]{8}$/.test(storedRid)) {
+          return { ref: storedRef, rid: storedRid }
+        }
+      }
     }
   } catch { /* ignore */ }
   return { ref: '', rid: '' }
@@ -542,6 +556,11 @@ export default function ChatbotPage() {
       }
       cardRef.current = card
       saveCache(card, profileRef.current || {})
+
+      // Clear referral storage since card is successfully generated under this referral
+      try {
+        localStorage.removeItem('wtl_referral')
+      } catch {}
 
       await botSay('🎉 Your Digital Member ID Card is ready!', 200)
       addMsg('bot', 'generated_card', { card, isNew: true })

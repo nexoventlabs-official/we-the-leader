@@ -235,7 +235,8 @@ router.get('/api/whatsapp-channel', (req, res) => {
 //  GET /refer/:wtlCode/:referralId  →  Python's referral_landing
 router.get('/refer/:wtlCode/:referralId', async (req, res) => {
   try {
-    const { wtlCode, referralId } = req.params;
+    const wtlCode = String(req.params.wtlCode || '').trim().toUpperCase();
+    const referralId = String(req.params.referralId || '').trim().toUpperCase();
     const db  = getDb();
     const doc = await db.collection('generated_voters').findOne(
       { wtl_code: wtlCode, referral_id: referralId },
