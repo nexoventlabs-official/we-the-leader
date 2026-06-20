@@ -64,15 +64,22 @@ async function ensureAppIndexes() {
   try {
     const db = appConn.db;
 
-    await db.collection('generated_voters').createIndex({ EPIC_NO: 1 },        { unique: true, background: true });
-    await db.collection('generated_voters').createIndex({ MOBILE_NO: 1 },      { background: true });
+    // Drop old conflicting indexes if they exist
+    await db.collection('generated_voters').dropIndex('EPIC_NO_1').catch(() => {});
+    await db.collection('generated_voters').dropIndex('MOBILE_NO_1').catch(() => {});
+    await db.collection('generation_stats').dropIndex('epic_no_1').catch(() => {});
+    await db.collection('generation_stats').dropIndex('auth_mobile_1').catch(() => {});
+
+    // Recreate indexes with new uniqueness constraints
+    await db.collection('generated_voters').createIndex({ MOBILE_NO: 1 },      { unique: true, background: true });
+    await db.collection('generated_voters').createIndex({ EPIC_NO: 1 },        { background: true });
     await db.collection('generated_voters').createIndex({ wtl_code: 1 },        { unique: true, sparse: true, background: true });
     await db.collection('generated_voters').createIndex({ ptc_code: 1 },        { unique: true, sparse: true, background: true });
     await db.collection('generated_voters').createIndex({ referred_by_wtl: 1 }, { background: true });
     await db.collection('generated_voters').createIndex({ referred_by_ptc: 1 }, { background: true });
 
-    await db.collection('generation_stats').createIndex({ epic_no: 1 },    { unique: true, background: true });
-    await db.collection('generation_stats').createIndex({ auth_mobile: 1 }, { background: true });
+    await db.collection('generation_stats').createIndex({ auth_mobile: 1 }, { unique: true, background: true });
+    await db.collection('generation_stats').createIndex({ epic_no: 1 },     { background: true });
 
     await db.collection('otp_sessions').createIndex({ mobile: 1 },     { unique: true, background: true });
     await db.collection('otp_sessions').createIndex({ created_at: 1 }, { expireAfterSeconds: 600, background: true });

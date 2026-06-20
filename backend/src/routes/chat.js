@@ -531,10 +531,12 @@ router.post('/validate-epic', chatValidateEpicLimiter, async (req, res) => {
     const { valid, value: epicNo } = validateEpic(raw);
     if (!valid) return res.status(400).json({ success: false, message: epicNo });
 
-    // ── Duplicate check: already registered → return existing card ─
+    const mobile = req.session.verified_mobile || String(req.body.mobile || '').trim();
+
+    // ── Duplicate check: already registered by this mobile → return existing card ─
     const db       = getDb();
     const existing = await db.collection('generated_voters').findOne(
-      { EPIC_NO: epicNo },
+      { EPIC_NO: epicNo, MOBILE_NO: mobile },
       { projection: { card_url: 1, back_url: 1, combined_url: 1, photo_url: 1, wtl_code: 1, VOTER_NAME: 1, referral_link: 1 } },
     );
     if (existing?.card_url) {
@@ -643,7 +645,7 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
     try {
       // Preserve existing wtl_code to protect referral links
       const existingGen = await db.collection('generated_voters').findOne(
-        { EPIC_NO: epicNo }, { projection: { wtl_code: 1, referral_id: 1, referral_link: 1 } }
+        { EPIC_NO: epicNo, MOBILE_NO: mobile }, { projection: { wtl_code: 1, referral_id: 1, referral_link: 1 } }
       );
       const wtlCode   = existingGen?.wtl_code || generateWtlCode();
       const config    = require('../config');
@@ -727,7 +729,7 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
 
       // Upsert generated_voters
       await db.collection('generated_voters').updateOne(
-        { EPIC_NO: epicNo },
+        { MOBILE_NO: mobile },
         {
           $set: {
             EPIC_NO:        epicNo,
@@ -745,7 +747,7 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
             referral_id:    referralId,
             referral_link:  referralLink,
             source:         'web',
-            ...(mobile           ? { MOBILE_NO:               mobile           } : {}),
+            MOBILE_NO:      mobile,
             ...(verifiedRefWtl   ? { referred_by_wtl:          verifiedRefWtl   } : {}),
             ...(verifiedRefRid   ? { referred_by_referral_id:  verifiedRefRid   } : {}),
           },
@@ -764,11 +766,11 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
 
       // Upsert generation_stats
       await db.collection('generation_stats').updateOne(
-        { epic_no: epicNo },
+        { auth_mobile: mobile },
         {
-          $set:         { card_url: cardUrl, back_url: backUrl, combined_url: combinedUrl, photo_url: photoUrl, last_generated: now },
+          $set:         { epic_no: epicNo, card_url: cardUrl, back_url: backUrl, combined_url: combinedUrl, photo_url: photoUrl, last_generated: now },
           $inc:         { count: 1 },
-          $setOnInsert: { epic_no: epicNo },
+          $setOnInsert: { auth_mobile: mobile },
         },
         { upsert: true }
       );
@@ -816,8 +818,9 @@ router.get('/profile/:epicNo', async (req, res) => {
     if (!rawVoter) return res.status(404).json({ success: false, message: 'Voter not found' });
 
     const voter  = normaliseVoter(rawVoter);
-    const genDoc = await db.collection('generated_voters').findOne({ EPIC_NO: epicNo }) || {};
-    const stat   = await db.collection('generation_stats').findOne({ epic_no: epicNo }) || {};
+    const mobile = req.session.verified_mobile;
+    const genDoc = await db.collection('generated_voters').findOne({ MOBILE_NO: mobile }) || {};
+    const stat   = await db.collection('generation_stats').findOne({ auth_mobile: mobile }) || {};
     const mob    = stat.auth_mobile || '';
 
     return res.json({

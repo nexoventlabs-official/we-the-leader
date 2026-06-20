@@ -441,7 +441,7 @@ export default function ChatbotPage() {
     setInputValue('')
     setIsTyping(true)
     try {
-      const res = await chat.validateEpic(epic)
+      const res = await chat.validateEpic(epic, mobileRef.current)
       await sleep(200)
       setIsTyping(false)
 

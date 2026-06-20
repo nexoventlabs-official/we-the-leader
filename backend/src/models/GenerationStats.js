@@ -1,7 +1,7 @@
 const { mongoose } = require('../db');
 const generationStatsSchema = new mongoose.Schema({
-  epic_no:      { type: String, required: true, unique: true, index: true },
-  auth_mobile:  { type: String, index: true },
+  epic_no:      { type: String, required: true, index: true },
+  auth_mobile:  { type: String, unique: true, index: true },
   card_url:     { type: String },
   back_url:     { type: String },
   combined_url: { type: String },

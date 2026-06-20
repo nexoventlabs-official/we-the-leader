@@ -47,8 +47,8 @@ export const chat = {
   setPin: (mobile, pin, epicNo) =>
     api.post('/api/set-pin', { mobile, pin, epic_no: epicNo }),
 
-  validateEpic: (epicNo) =>
-    api.post('/api/validate-epic', { epic_no: epicNo }),
+  validateEpic: (epicNo, mobile) =>
+    api.post('/api/validate-epic', { epic_no: epicNo, mobile }),
 
   generateCard: (formData) =>
     api.post('/api/generate-card', formData, {

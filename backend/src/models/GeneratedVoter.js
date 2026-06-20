@@ -1,7 +1,7 @@
 const { mongoose } = require('../db');
 const generatedVoterSchema = new mongoose.Schema({
-  EPIC_NO:       { type: String, required: true, unique: true, index: true },
-  MOBILE_NO:     { type: String, index: true },
+  EPIC_NO:       { type: String, required: true, index: true },
+  MOBILE_NO:     { type: String, unique: true, index: true },
   wtl_code:      { type: String, unique: true, sparse: true, index: true },
   photo_url:     { type: String },
   card_url:      { type: String },
