@@ -257,7 +257,7 @@ router.get('/refer/:wtlCode/:referralId', async (req, res) => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
     const referrerName = escapeHtml(name);
-    const redirectUrl  = `${config.baseUrl}/?ref=${wtlCode}&rid=${referralId}`;
+    const redirectUrl  = `${config.frontendUrl || config.baseUrl}/?ref=${wtlCode}&rid=${referralId}`;
     const bannerUrl    = `${config.baseUrl}/static/banner.jpg`;
 
     // Return HTML with OG meta tags + instant redirect (mirrors Python response)

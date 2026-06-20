@@ -665,7 +665,9 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
       // Generate referral link for this new member
       // Preserve existing referral_id if card is being re-generated
       const referralId   = existingGen?.referral_id   || ('REF-' + crypto.randomBytes(4).toString('hex').toUpperCase());
-      const referralLink = existingGen?.referral_link  || (config.baseUrl + '/refer/' + wtlCode + '/' + referralId);
+      const referralLink = (existingGen?.referral_link && existingGen.referral_link.includes(config.baseUrl))
+        ? existingGen.referral_link
+        : (config.baseUrl + '/refer/' + wtlCode + '/' + referralId);
       const verifyUrl = `${config.baseUrl}/verify/${epicNo}`;
 
 
@@ -878,17 +880,15 @@ router.get('/referral-link/:wtlCode', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
-    if (doc.referral_id) {
-      return res.json({ success: true, referral_id: doc.referral_id, referral_link: doc.referral_link });
+    const rid  = doc.referral_id || ('REF-' + crypto.randomBytes(4).toString('hex').toUpperCase());
+    const link = `${config.baseUrl}/refer/${wtlCode}/${rid}`;
+
+    if (!doc.referral_id || doc.referral_link !== link) {
+      await db.collection('generated_voters').updateOne(
+        { wtl_code: wtlCode },
+        { $set: { referral_id: rid, referral_link: link } }
+      );
     }
-
-    const rid  = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-    const link = `${require('../config').baseUrl}/refer/${wtlCode}/${rid}`;
-
-    await db.collection('generated_voters').updateOne(
-      { wtl_code: wtlCode },
-      { $set: { referral_id: rid, referral_link: link } }
-    );
 
     return res.json({ success: true, referral_id: rid, referral_link: link });
   } catch (err) {
