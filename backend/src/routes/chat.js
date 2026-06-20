@@ -665,9 +665,10 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
       // Generate referral link for this new member
       // Preserve existing referral_id if card is being re-generated
       const referralId   = existingGen?.referral_id   || ('REF-' + crypto.randomBytes(4).toString('hex').toUpperCase());
-      const referralLink = (existingGen?.referral_link && existingGen.referral_link.includes(config.baseUrl))
+      const referralBase = config.frontendUrl || config.baseUrl;
+      const referralLink = existingGen?.referral_link
         ? existingGen.referral_link
-        : (config.baseUrl + '/refer/' + wtlCode + '/' + referralId);
+        : (referralBase + '/refer/' + wtlCode + '/' + referralId);
       const verifyUrl = `${config.baseUrl}/verify/${epicNo}`;
 
 
@@ -881,7 +882,8 @@ router.get('/referral-link/:wtlCode', async (req, res) => {
     }
 
     const rid  = doc.referral_id || ('REF-' + crypto.randomBytes(4).toString('hex').toUpperCase());
-    const link = `${config.baseUrl}/refer/${wtlCode}/${rid}`;
+    const referralBase = config.frontendUrl || config.baseUrl;
+    const link = `${referralBase}/refer/${wtlCode}/${rid}`;
 
     if (!doc.referral_id || doc.referral_link !== link) {
       await db.collection('generated_voters').updateOne(
