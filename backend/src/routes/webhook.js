@@ -202,7 +202,7 @@ async function handleTextMessage(from, mobile, db) {
       const epicNo = (pending && pending.epic_no) || (statDoc && statDoc.epic_no);
       if (epicNo) {
         const byEpic = await db.collection('generated_voters').findOne(
-          { EPIC_NO: epicNo },
+          { EPIC_NO: epicNo, MOBILE_NO: mobile },
           { projection: { VOTER_NAME: 1, EPIC_NO: 1, card_url: 1, MOBILE_NO: 1 } },
         );
         if (byEpic && byEpic.card_url) {
@@ -468,7 +468,7 @@ async function handleSendCard(from, mobile, db) {
       const epicNo = (pending && pending.epic_no) || (stat && stat.epic_no);
       if (epicNo) {
         genDoc = await db.collection('generated_voters').findOne(
-          { EPIC_NO: epicNo },
+          { EPIC_NO: epicNo, MOBILE_NO: mobile },
           { projection: { card_url: 1, back_url: 1, VOTER_NAME: 1, EPIC_NO: 1, wtl_code: 1 } },
         );
       }
@@ -532,7 +532,7 @@ async function handleFlowReply(from, mobile, nfmReply, db) {
 
   if (epicNo) {
     const genDoc = await db.collection('generated_voters').findOne(
-      { EPIC_NO: epicNo }, { projection: { card_url: 1 } },
+      { EPIC_NO: epicNo, MOBILE_NO: mobile }, { projection: { card_url: 1 } },
     );
     if (genDoc && genDoc.card_url) {
       await handleSendCard(from, mobile, db);

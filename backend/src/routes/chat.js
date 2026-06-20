@@ -591,10 +591,11 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
     }
 
     const db = getDb();
+    const mobile      = req.session.verified_mobile || String(req.body.mobile || '').trim() || '';
 
-    // ── Hard block: already registered ────────────────────────────
+    // ── Hard block: already registered by this mobile ────────────────────────────
     const existingCard = await db.collection('generated_voters').findOne(
-      { EPIC_NO: epicNo },
+      { EPIC_NO: epicNo, MOBILE_NO: mobile },
       { projection: { card_url: 1, back_url: 1, wtl_code: 1, VOTER_NAME: 1 } },
     );
     if (existingCard?.card_url) {
@@ -617,7 +618,6 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
     }
     const voter = normaliseVoter(rawVoter);
 
-    const mobile      = req.session.verified_mobile || String(req.body.mobile || '').trim() || '';
     const photoBuffer = req.file.buffer;
 
     // ── Distributed lock — prevent duplicate concurrent generation ─
