@@ -410,6 +410,7 @@ export default function ChatbotPage() {
           epic_no:    res.epic_no    || '',
           voter_name: res.voter_name || '',
           wtl_code:   res.wtl_code   || res.ptc_code   || '',
+          referral_link: res.referral_link || '',
         }
         cardRef.current = card
         epicRef.current = card.epic_no
@@ -444,7 +445,6 @@ export default function ChatbotPage() {
       await sleep(200)
       setIsTyping(false)
 
-      // ── Already registered: show existing card immediately ──────
       if (res.already_registered || res.card_url) {
         const card = {
           epic_no:     res.epic_no     || epic,
@@ -454,6 +454,7 @@ export default function ChatbotPage() {
           combined_url: res.combined_url || '',
           photo_url:   res.photo_url   || '',
           wtl_code:    res.wtl_code    || res.ptc_code    || '',
+          referral_link: res.referral_link || '',
         }
         cardRef.current = card
         saveCache(card, {})
@@ -484,6 +485,7 @@ export default function ChatbotPage() {
           combined_url: data.combined_url || '',
           photo_url:   data.photo_url   || '',
           wtl_code:    data.wtl_code    || data.ptc_code    || '',
+          referral_link: data.referral_link || '',
         }
         cardRef.current = card
         saveCache(card, {})

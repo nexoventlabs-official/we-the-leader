@@ -274,6 +274,10 @@ router.post('/check-mobile', async (req, res) => {
     const hasCard = Boolean((stat && stat.card_url) || (genDoc && genDoc.card_url));
 
     if (hasCard) {
+      // Set verified session when mobile check succeeds for a registered user
+      req.session.verified_mobile = mobile;
+      req.session.cookie.maxAge   = 86400 * 1000;
+
       const s      = stat || {};
       const g      = genDoc || {};
       const hasPin = Boolean(s.secret_pin || g.secret_pin);
@@ -282,12 +286,13 @@ router.post('/check-mobile', async (req, res) => {
       if (!hasPin) {
         // Support both web-stored (FM_NAME_EN/LASTNAME_EN) and WhatsApp-stored (VOTER_NAME) name fields
         const name = (g.VOTER_NAME || `${g.FM_NAME_EN || ''} ${g.LASTNAME_EN || ''}`.trim() || '').trim();
-        result.epic_no    = s.epic_no  || g.EPIC_NO   || '';
-        result.card_url   = s.card_url || g.card_url  || '';
-        result.back_url   = s.back_url || g.back_url  || '';
-        result.voter_name = name;
-        result.photo_url  = g.photo_url || '';
-        result.wtl_code   = g.wtl_code  || '';
+        result.epic_no      = s.epic_no  || g.EPIC_NO   || '';
+        result.card_url     = s.card_url || g.card_url  || '';
+        result.back_url     = s.back_url || g.back_url  || '';
+        result.voter_name   = name;
+        result.photo_url    = g.photo_url || '';
+        result.wtl_code     = g.wtl_code  || '';
+        result.referral_link = g.referral_link || '';
       }
       return res.json(result);
     }
@@ -323,6 +328,10 @@ router.post('/verify-pin', chatVerifyPinLimiter, async (req, res) => {
     const genDoc = await db.collection('generated_voters').findOne({ MOBILE_NO: mobile });
     const name   = genDoc ? `${genDoc.FM_NAME_EN || ''} ${genDoc.LASTNAME_EN || ''}`.trim() : '';
 
+    // Set verified session upon PIN verification
+    req.session.verified_mobile = mobile;
+    req.session.cookie.maxAge   = 86400 * 1000;
+
     return res.json({
       success:    true,
       has_card:   true,
@@ -330,6 +339,7 @@ router.post('/verify-pin', chatVerifyPinLimiter, async (req, res) => {
       card_url:   stat.card_url || '',
       voter_name: name,
       photo_url:  genDoc?.photo_url || '',
+      referral_link: genDoc?.referral_link || '',
     });
   } catch (err) {
     console.error('verify-pin error:', err.message);
@@ -525,7 +535,7 @@ router.post('/validate-epic', chatValidateEpicLimiter, async (req, res) => {
     const db       = getDb();
     const existing = await db.collection('generated_voters').findOne(
       { EPIC_NO: epicNo },
-      { projection: { card_url: 1, back_url: 1, combined_url: 1, photo_url: 1, wtl_code: 1, VOTER_NAME: 1 } },
+      { projection: { card_url: 1, back_url: 1, combined_url: 1, photo_url: 1, wtl_code: 1, VOTER_NAME: 1, referral_link: 1 } },
     );
     if (existing?.card_url) {
       return res.status(409).json({
@@ -539,6 +549,7 @@ router.post('/validate-epic', chatValidateEpicLimiter, async (req, res) => {
         wtl_code:    existing.wtl_code    || '',
         voter_name:  existing.VOTER_NAME  || '',
         epic_no:     epicNo,
+        referral_link: existing.referral_link || '',
       });
     }
 
@@ -761,6 +772,10 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
         },
         { upsert: true }
       );
+
+      // Set verified session when card is successfully generated
+      req.session.verified_mobile = mobile;
+      req.session.cookie.maxAge   = 86400 * 1000;
 
       return res.json({
         success:       true,
