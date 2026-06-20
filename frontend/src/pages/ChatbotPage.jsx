@@ -843,16 +843,18 @@ export default function ChatbotPage() {
               </div>
             </div>
             <div className="left-menu-header-actions">
-              <button
-                className="chat-header-btn"
-                onClick={() => {
-                  if (window.confirm('Logout and start over?')) handleLogout()
-                }}
-                title="Logout"
-                style={{ fontSize: 16 }}
-              >
-                <i className="bi bi-box-arrow-right" />
-              </button>
+              {isDone && (
+                <button
+                  className="chat-header-btn"
+                  onClick={() => {
+                    if (window.confirm('Logout and start over?')) handleLogout()
+                  }}
+                  title="Logout"
+                  style={{ fontSize: 16 }}
+                >
+                  <i className="bi bi-box-arrow-right" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -883,20 +885,24 @@ export default function ChatbotPage() {
               { icon: 'hand-thumbs-up-fill', label: 'Be a Volunteer',    action: 'volunteer',    desc: 'Apply to be a WTL Volunteer' },
               { icon: 'building-fill-check', label: 'Be a Booth Agent',  action: 'booth_agent',  desc: 'Apply to be a Booth Agent' },
             ].map((item) => {
-              const locked = !isDone
+              const isComingSoon = item.action === 'volunteer' || item.action === 'booth_agent'
+              const locked = !isDone || isComingSoon
               return (
                 <div
                   key={item.action}
                   className={`left-chat-item option-item ${locked ? 'locked' : ''}`}
                   onClick={() => !locked && handleSidebarAction(item.action)}
-                  title={locked ? 'Complete registration to unlock' : item.desc}
+                  title={isComingSoon ? 'Coming Soon' : locked ? 'Complete registration to unlock' : item.desc}
                 >
                   <div className="left-chat-avatar option-avatar">
                     <i className={`bi bi-${item.icon}`} />
                   </div>
                   <div className="left-chat-details">
                     <div className="left-chat-name-row">
-                      <span className="left-chat-name">{item.label}</span>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <span className="left-chat-name">{item.label}</span>
+                        {isComingSoon && <span className="coming-soon-badge">Coming Soon</span>}
+                      </div>
                       {locked && <i className="bi bi-lock-fill lock-icon" />}
                     </div>
                     <div className="left-chat-msg">{item.desc}</div>
@@ -934,23 +940,25 @@ export default function ChatbotPage() {
               </div>
               <div className="chat-header-actions">
                 {isDone && (
-                  <button
-                    className="chat-header-btn"
-                    onClick={() => setSidebarOpen(true)}
-                    title="Menu"
-                  >
-                    <i className="bi bi-list" />
-                  </button>
+                  <>
+                    <button
+                      className="chat-header-btn"
+                      onClick={() => setSidebarOpen(true)}
+                      title="Menu"
+                    >
+                      <i className="bi bi-list" />
+                    </button>
+                    <button
+                      className="chat-header-btn"
+                      onClick={() => {
+                        if (window.confirm('Logout and start over?')) handleLogout()
+                      }}
+                      title="Logout"
+                    >
+                      <i className="bi bi-box-arrow-right" />
+                    </button>
+                  </>
                 )}
-                <button
-                  className="chat-header-btn"
-                  onClick={() => {
-                    if (window.confirm('Logout and start over?')) handleLogout()
-                  }}
-                  title="Logout"
-                >
-                  <i className="bi bi-box-arrow-right" />
-                </button>
               </div>
             </header>
 
@@ -994,7 +1002,7 @@ export default function ChatbotPage() {
                     key={msg.id}
                     className={`msg-row ${msg.from}`}
                   >
-                    <div className={`msg-bubble ${['voter_card','generated_card','booth_info','referral_link','members_list','profile_card'].includes(msg.type) ? 'wide' : ''}`}>
+                    <div className={`msg-bubble ${['voter_card','generated_card','booth_info','referral_link','members_list','profile_card','welcome_banner'].includes(msg.type) ? 'wide' : ''}`}>
                       {renderMsgContent(msg)}
                       <div className="msg-time">
                         {fmtTime(msg.ts)}
@@ -1108,16 +1116,26 @@ export default function ChatbotPage() {
                 { icon: 'people-fill',         label: 'My Members',        action: 'my_members' },
                 { icon: 'hand-thumbs-up-fill', label: 'Be a Volunteer',    action: 'volunteer' },
                 { icon: 'building-fill-check', label: 'Be a Booth Agent',  action: 'booth_agent' },
-              ].map((item) => (
-                <button
-                  key={item.action}
-                  className="sidebar-nav-item"
-                  onClick={() => handleSidebarAction(item.action)}
-                >
-                  <i className={`bi bi-${item.icon}`} />
-                  <span>{item.label}</span>
-                </button>
-              ))}
+              ].map((item) => {
+                const isComingSoon = item.action === 'volunteer' || item.action === 'booth_agent'
+                return (
+                  <button
+                    key={item.action}
+                    className={`sidebar-nav-item ${isComingSoon ? 'locked' : ''}`}
+                    onClick={() => !isComingSoon && handleSidebarAction(item.action)}
+                    style={isComingSoon ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <i className={`bi bi-${item.icon}`} />
+                        <span>{item.label}</span>
+                        {isComingSoon && <span className="coming-soon-badge">Coming Soon</span>}
+                      </div>
+                      {isComingSoon && <i className="bi bi-lock-fill" style={{ fontSize: 12, opacity: 0.8 }} />}
+                    </div>
+                  </button>
+                )
+              })}
             </nav>
             <div className="sidebar-footer">
               <button className="sidebar-logout-btn" onClick={handleLogout}>

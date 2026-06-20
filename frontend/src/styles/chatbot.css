@@ -602,9 +602,11 @@
 
 .banner-img {
   width: 100%;
-  height: 180px;
+  height: auto;
+  aspect-ratio: 1942 / 809;
   object-fit: cover;
   border-bottom: 1px solid var(--color-graphite);
+  display: block;
 }
 
 .banner-content {
@@ -1045,6 +1047,11 @@
   display: flex;
   flex-direction: column;
 }
+@media (max-width: 480px) {
+  .sidebar-panel {
+    width: 100%;
+  }
+}
 
 .sidebar-header {
   padding: var(--spacing-24);
@@ -1269,7 +1276,7 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .chatbot-app.wtl-theme .left-menu-panel {
     display: none !important; /* Hide on mobile/tablet */
   }
@@ -1582,7 +1589,7 @@
   background-color: #ffffff;
   border-bottom: 2px solid #0C3B1C; /* Dark green accent line like card */
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .chatbot-app.wtl-theme .chat-header {
     display: none !important; /* Hide redundant header on desktop since left sidebar is always visible */
   }
@@ -1674,5 +1681,21 @@
 }
 .chatbot-app.wtl-theme .crop-hint {
   color: #555555;
+}
+
+/* Coming Soon Badge */
+.coming-soon-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: rgba(245, 158, 11, 0.15); /* Soft amber */
+  color: #b45309; /* Dark amber */
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  display: inline-block;
+  vertical-align: middle;
+  letter-spacing: 0.05em;
+  line-height: 1;
 }
 
