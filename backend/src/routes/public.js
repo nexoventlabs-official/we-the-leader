@@ -100,7 +100,7 @@ async function verifyVoterHandler(req, res) {
     const partNo   = String(voter?.PART_NO || genDoc.PART_NO || '');
     const cardUrl  = stat.card_url  || genDoc.card_url  || '';
     const photoUrl = stat.photo_url || genDoc.photo_url || '';
-    const wtlCode  = genDoc.ptc_code || '';
+    const wtlCode  = genDoc.wtl_code || '';
     const isMember = Boolean(wtlCode);
 
     // ── If request is from a browser (QR scan), return HTML verify page ─
@@ -165,7 +165,7 @@ ${cardUrl ? `.view-card{display:block;margin-top:20px;padding:14px;background:#f
     const out = {
       success: true, verified: Boolean(voter), epic_no: epicNo, name, assembly, district,
       age: voter?.AGE || '', gender: voter?.GENDER || '', part_no: partNo,
-      ptc_code: wtlCode, photo_url: photoUrl, card_url: cardUrl,
+      wtl_code: wtlCode, photo_url: photoUrl, card_url: cardUrl,
       gen_count: stat.count || 0,
       last_generated: stat.last_generated ? String(stat.last_generated).slice(0,19).replace('T',' ') : '',
       auth_mobile_masked: authMob.length >= 4 ? `****${authMob.slice(-4)}` : '',
@@ -211,7 +211,7 @@ router.get('/api/card/:epicNo', async (req, res) => {
       back_url:     stat.back_url     || genDoc.back_url     || '',
       combined_url: stat.combined_url || genDoc.combined_url || '',
       photo_url:    stat.photo_url    || genDoc.photo_url    || '',
-      ptc_code:     genDoc.ptc_code   || '',
+      wtl_code:     genDoc.wtl_code   || '',
       gen_count:    stat.count        || 0,
       name,
       epic_no:      epicNo,
@@ -232,13 +232,13 @@ router.get('/api/whatsapp-channel', (req, res) => {
 });
 
 // ── Referral landing  ─────────────────────────────────────────────
-//  GET /refer/:ptcCode/:referralId  →  Python's referral_landing
-router.get('/refer/:ptcCode/:referralId', async (req, res) => {
+//  GET /refer/:wtlCode/:referralId  →  Python's referral_landing
+router.get('/refer/:wtlCode/:referralId', async (req, res) => {
   try {
-    const { ptcCode, referralId } = req.params;
+    const { wtlCode, referralId } = req.params;
     const db  = getDb();
     const doc = await db.collection('generated_voters').findOne(
-      { ptc_code: ptcCode, referral_id: referralId },
+      { wtl_code: wtlCode, referral_id: referralId },
       { projection: { VOTER_NAME: 1, FM_NAME_EN: 1, LASTNAME_EN: 1 } }
     );
 
@@ -257,7 +257,7 @@ router.get('/refer/:ptcCode/:referralId', async (req, res) => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
     const referrerName = escapeHtml(name);
-    const redirectUrl  = `${config.baseUrl}/?ref=${ptcCode}&rid=${referralId}`;
+    const redirectUrl  = `${config.baseUrl}/?ref=${wtlCode}&rid=${referralId}`;
     const bannerUrl    = `${config.baseUrl}/static/banner.jpg`;
 
     // Return HTML with OG meta tags + instant redirect (mirrors Python response)
@@ -268,7 +268,7 @@ router.get('/refer/:ptcCode/:referralId', async (req, res) => {
   <meta property="og:title"       content="We The Leaders — Become a Member!">
   <meta property="og:description" content="${referrerName} invites you to join We The Leaders! Generate your free Digital Member ID Card now.">
   <meta property="og:image"       content="${bannerUrl}">
-  <meta property="og:url"         content="${config.baseUrl}/refer/${ptcCode}/${referralId}">
+  <meta property="og:url"         content="${config.baseUrl}/refer/${wtlCode}/${referralId}">
   <meta name="twitter:card"       content="summary_large_image">
   <meta name="twitter:title"      content="We The Leaders — Become a Member!">
   <meta name="twitter:image"      content="${bannerUrl}">

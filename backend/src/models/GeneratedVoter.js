@@ -2,7 +2,7 @@ const { mongoose } = require('../db');
 const generatedVoterSchema = new mongoose.Schema({
   EPIC_NO:       { type: String, required: true, unique: true, index: true },
   MOBILE_NO:     { type: String, index: true },
-  ptc_code:      { type: String, unique: true, sparse: true, index: true },
+  wtl_code:      { type: String, unique: true, sparse: true, index: true },
   photo_url:     { type: String },
   card_url:      { type: String },
   back_url:      { type: String },
@@ -10,7 +10,7 @@ const generatedVoterSchema = new mongoose.Schema({
   secret_pin:    { type: String },
   referral_id:   { type: String },
   referral_link: { type: String },
-  referred_by_ptc:             { type: String, index: true },
+  referred_by_wtl:             { type: String, index: true },
   referred_by_referral_id:     { type: String },
   referred_members_count:      { type: Number, default: 0 },
   source:        { type: String },

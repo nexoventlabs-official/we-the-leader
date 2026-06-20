@@ -67,8 +67,8 @@ export const FlipCard3D = forwardRef(function FlipCard3D(
       const assembly = String(cardData.assembly_name || cardData.assembly || cardData.ASSEMBLY_NAME || '').toUpperCase()
       const booth    = String(cardData.part_no || cardData.booth_no || cardData.PART_NO || '')
       const district = String(cardData.district || cardData.DISTRICT || cardData.DISTRICT_NAME || '').toUpperCase()
-      const ptcCode  = cardData.ptc_code || ''
-      const midVal   = (ptcCode || (epic ? `WTL-${epic.slice(-6)}` : '')).toUpperCase()
+      const wtlCode  = cardData.wtl_code || cardData.ptc_code || ''
+      const midVal   = (wtlCode || (epic ? `WTL-${epic.slice(-6)}` : '')).toUpperCase()
       const photoUrl = cardData.photo_url || cardData.PHOTO_URL || ''
 
       set('f-name', name); set('f-epic', epic); set('f-asm', assembly)

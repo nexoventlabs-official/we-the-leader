@@ -34,6 +34,10 @@ function generateWtlCode() {
   return 'WTL-' + crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
+function generateReferralId() {
+  return 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+}
+
 // ── Signature verification ────────────────────────────────────────
 function verifySignature(rawBody, sigHeader) {
   if (!sigHeader || !sigHeader.startsWith('sha256=')) return false;
@@ -332,7 +336,7 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
       booth:         partNo,
       mobile:        mobile,
       MOBILE_NO:     mobile,
-      ptc_code:      wtlCode,
+      wtl_code:      wtlCode,
     };
 
     const frontBuffer = await generateCard(voterData, photoBuffer);
@@ -344,28 +348,47 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
 
     const now = new Date();
 
+    // Generate referral link for this new member
+    const referralId   = generateReferralId();
+    const referralLink = config.baseUrl + '/refer/' + wtlCode + '/' + referralId;
+
+    // Pull referral attribution stored when registration flow was submitted
+    const referredByWtl = pending.referred_by_wtl || '';
+    const referredByRid = pending.referred_by_referral_id || '';
+
     await db.collection('generated_voters').updateOne(
       { EPIC_NO: epicNo },
       {
         $set: {
-          EPIC_NO:       epicNo,
-          ptc_code:      wtlCode,
-          photo_url:     photoUrl,
-          card_url:      frontUrl,
-          back_url:      backUrl,
-          combined_url:  frontUrl,
-          generated_at:  now,
-          VOTER_NAME:    pending.voter_name    || '',
-          ASSEMBLY_NAME: pending.assembly_name || '',
-          DISTRICT_NAME: pending.district      || '',
-          PART_NO:       partNo,
-          MOBILE_NO:     mobile,
-          source:        'whatsapp',
+          EPIC_NO:                 epicNo,
+          wtl_code:                wtlCode,
+          photo_url:               photoUrl,
+          card_url:                frontUrl,
+          back_url:                backUrl,
+          combined_url:            frontUrl,
+          generated_at:            now,
+          VOTER_NAME:              pending.voter_name    || '',
+          ASSEMBLY_NAME:           pending.assembly_name || '',
+          DISTRICT_NAME:           pending.district      || '',
+          PART_NO:                 partNo,
+          MOBILE_NO:               mobile,
+          source:                  'whatsapp',
+          referral_id:             referralId,
+          referral_link:           referralLink,
+          ...(referredByWtl ? { referred_by_wtl: referredByWtl, referred_by_referral_id: referredByRid } : {}),
         },
         $setOnInsert: { created_at: now },
       },
       { upsert: true },
     );
+
+    // Increment referrer's referred_members_count if applicable
+    if (referredByWtl) {
+      db.collection('generated_voters').updateOne(
+        { wtl_code: referredByWtl },
+        { $inc: { referred_members_count: 1 } }
+      ).catch(function() {});
+    }
 
     await db.collection('pending_registrations').updateOne(
       { mobile },
@@ -389,10 +412,30 @@ async function handleImageMessage(from, mobile, imageInfo, db) {
     await sendImageMessage(from, backUrl, 'Your Digital Member ID Card -- BACK\n\nWe The Leaders -- Lead the Change');
 
     const welcomeName = pending.voter_name || 'Member';
-    await sendTextMessage(
+    await new Promise(function(r) { setTimeout(r, 800); });
+
+    // Send referral link with a CTA button so they can copy & share instantly
+    const ctaResult = await sendCtaUrlMessage(
       from,
-      'Registration Complete!\n\nWelcome to We The Leaders, ' + welcomeName + '!\n\nYour WTL Code: ' + wtlCode + '\n\nShare your referral and invite others to join!',
+      '🎉 Registration Complete!',
+      'Welcome to *We The Leaders*, ' + welcomeName + '! 🎊\n\n' +
+      'Your *WTL Code*: ' + wtlCode + '\n\n' +
+      '👥 *Share your referral link* with friends and family to invite them to join. ' +
+      'Every member you refer will be shown in your *My Members* list!\n\n' +
+      '🔗 Your personal referral link is ready — tap the button below to open it.',
+      'We The Leaders — Lead the Change',
+      '🔗 View My Referral Link',
+      referralLink,
     );
+
+    // Fallback: plain text with link if CTA fails
+    if (!ctaResult.success) {
+      await sendTextMessage(
+        from,
+        'Registration Complete!\n\nWelcome to We The Leaders, ' + welcomeName + '!\n\nYour WTL Code: ' + wtlCode + '\n\n' +
+        '👥 Share your referral link to invite others:\n' + referralLink,
+      );
+    }
 
   } catch (err) {
     console.error('[Webhook] handleImageMessage error (' + mobile + '):', err.message);
@@ -411,7 +454,7 @@ async function handleSendCard(from, mobile, db) {
     // Try MOBILE_NO first, fall back to EPIC from pending/stats
     let genDoc = await db.collection('generated_voters').findOne(
       { MOBILE_NO: mobile },
-      { projection: { card_url: 1, back_url: 1, VOTER_NAME: 1, EPIC_NO: 1, ptc_code: 1 } },
+      { projection: { card_url: 1, back_url: 1, VOTER_NAME: 1, EPIC_NO: 1, wtl_code: 1 } },
     );
 
     if (!genDoc || !genDoc.card_url) {
@@ -426,7 +469,7 @@ async function handleSendCard(from, mobile, db) {
       if (epicNo) {
         genDoc = await db.collection('generated_voters').findOne(
           { EPIC_NO: epicNo },
-          { projection: { card_url: 1, back_url: 1, VOTER_NAME: 1, EPIC_NO: 1, ptc_code: 1 } },
+          { projection: { card_url: 1, back_url: 1, VOTER_NAME: 1, EPIC_NO: 1, wtl_code: 1 } },
         );
       }
     }
@@ -449,7 +492,7 @@ async function handleSendCard(from, mobile, db) {
 
     const name    = (genDoc && genDoc.VOTER_NAME) || '';
     const epicNo  = (genDoc && genDoc.EPIC_NO)    || '';
-    const wtlCode = (genDoc && genDoc.ptc_code)   || '';
+    const wtlCode = (genDoc && genDoc.wtl_code)   || '';
 
     const parts = ['Your Digital Member ID Card -- FRONT'];
     if (name)    parts.push('Name     : ' + name);
@@ -481,6 +524,12 @@ async function handleFlowReply(from, mobile, nfmReply, db) {
   const epicNo = data.epic_no    || '';
   const name   = data.voter_name || '';
 
+  // Referral attribution passed from the flow token or response payload
+  // The frontend embeds ref/rid in the flow token as "registration_<from>_<ts>_<ref>_<rid>"
+  // or the flow JSON may carry them directly.
+  const refWtl = data.referred_by_wtl || data.referred_by_ptc || data.ref || '';
+  const refRid = data.referred_by_referral_id || data.rid || '';
+
   if (epicNo) {
     const genDoc = await db.collection('generated_voters').findOne(
       { EPIC_NO: epicNo }, { projection: { card_url: 1 } },
@@ -489,6 +538,27 @@ async function handleFlowReply(from, mobile, nfmReply, db) {
       await handleSendCard(from, mobile, db);
       return;
     }
+
+    // Store voter details + referral attribution in pending_registrations
+    // so handleImageMessage can pick them up when the photo arrives
+    const pendingUpdate = {
+      status:        'awaiting_photo',
+      epic_no:       epicNo,
+      voter_name:    name,
+      assembly_name: data.assembly_name || '',
+      district:      data.district      || '',
+      updated_at:    new Date(),
+    };
+    if (refWtl) {
+      pendingUpdate.referred_by_wtl           = refWtl;
+      pendingUpdate.referred_by_referral_id   = refRid;
+    }
+    await db.collection('pending_registrations').updateOne(
+      { mobile },
+      { $set: pendingUpdate, $setOnInsert: { created_at: new Date() } },
+      { upsert: true },
+    );
+
     const greeting = name ? 'Hi ' + name + '! ' : 'Hi! ';
     await sendTextMessage(
       from,

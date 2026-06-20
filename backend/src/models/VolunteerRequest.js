@@ -1,6 +1,6 @@
 const { mongoose } = require('../db');
 const volunteerRequestSchema = new mongoose.Schema({
-  ptc_code:     { type: String, index: true },
+  wtl_code:     { type: String, index: true },
   epic_no:      { type: String },
   name:         { type: String },
   mobile:       { type: String },

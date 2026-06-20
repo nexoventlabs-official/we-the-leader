@@ -90,7 +90,7 @@ export default function ConfirmedBoothAgentsPage() {
                     <th>#</th>
                     <th>Name</th>
                     <th>EPIC No</th>
-                    <th>PTC Code</th>
+                    <th>WTL Code</th>
                     <th>Booth No</th>
                     <th>Mobile</th>
                     <th>Assembly</th>
@@ -98,32 +98,35 @@ export default function ConfirmedBoothAgentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {agents.map((a, i) => (
-                    <tr key={a.ptc_code || a.epic_no || i}>
-                      <td style={{ color: '#8696a0' }}>{(page - 1) * 20 + i + 1}</td>
-                      <td>{a.name || a.Name}</td>
-                      <td>
-                        <Link to={`/admin/voters/${a.epic_no}`} style={{ color: '#64b5f6', fontSize: 12 }}>{a.epic_no}</Link>
-                      </td>
-                      <td>
-                        {a.ptc_code
-                          ? <Link to={`/admin/generated-voters/${a.ptc_code}`} style={{ color: '#43a047', fontSize: 12 }}>{a.ptc_code}</Link>
-                          : '—'
-                        }
-                      </td>
-                      <td>
-                        {a.booth_no
-                          ? <span style={{ background: 'rgba(21,101,192,0.12)', color: '#64b5f6', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>{a.booth_no}</span>
-                          : '—'
-                        }
-                      </td>
-                      <td style={{ color: '#8696a0', fontSize: 12 }}>{a.mobile || '—'}</td>
-                      <td style={{ color: '#8696a0' }}>{a.assembly || a.AssemblyName || '—'}</td>
-                      <td style={{ color: '#8696a0', fontSize: 11 }}>
-                        {a.confirmed_at ? new Date(a.confirmed_at).toLocaleDateString() : '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {agents.map((a, i) => {
+                    const codeVal = a.wtl_code || a.ptc_code
+                    return (
+                      <tr key={codeVal || a.epic_no || i}>
+                        <td style={{ color: '#8696a0' }}>{(page - 1) * 20 + i + 1}</td>
+                        <td>{a.name || a.Name}</td>
+                        <td>
+                          <Link to={`/admin/voters/${a.epic_no}`} style={{ color: '#64b5f6', fontSize: 12 }}>{a.epic_no}</Link>
+                        </td>
+                        <td>
+                          {codeVal
+                            ? <Link to={`/admin/generated-voters/${codeVal}`} style={{ color: '#43a047', fontSize: 12 }}>{codeVal}</Link>
+                            : '—'
+                          }
+                        </td>
+                        <td>
+                          {a.booth_no
+                            ? <span style={{ background: 'rgba(21,101,192,0.12)', color: '#64b5f6', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>{a.booth_no}</span>
+                            : '—'
+                          }
+                        </td>
+                        <td style={{ color: '#8696a0', fontSize: 12 }}>{a.mobile || '—'}</td>
+                        <td style={{ color: '#8696a0' }}>{a.assembly || a.AssemblyName || '—'}</td>
+                        <td style={{ color: '#8696a0', fontSize: 11 }}>
+                          {a.confirmed_at ? new Date(a.confirmed_at).toLocaleDateString() : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

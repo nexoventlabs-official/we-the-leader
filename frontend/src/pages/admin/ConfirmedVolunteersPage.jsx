@@ -90,33 +90,36 @@ export default function ConfirmedVolunteersPage() {
                     <th>#</th>
                     <th>Name</th>
                     <th>EPIC No</th>
-                    <th>PTC Code</th>
+                    <th>WTL Code</th>
                     <th>Mobile</th>
                     <th>Assembly</th>
                     <th>Confirmed At</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {volunteers.map((v, i) => (
-                    <tr key={v.ptc_code || v.epic_no || i}>
-                      <td style={{ color: '#8696a0' }}>{(page - 1) * 20 + i + 1}</td>
-                      <td>{v.name || v.Name}</td>
-                      <td>
-                        <Link to={`/admin/voters/${v.epic_no}`} style={{ color: '#64b5f6', fontSize: 12 }}>{v.epic_no}</Link>
-                      </td>
-                      <td>
-                        {v.ptc_code
-                          ? <Link to={`/admin/generated-voters/${v.ptc_code}`} style={{ color: '#43a047', fontSize: 12 }}>{v.ptc_code}</Link>
-                          : '—'
-                        }
-                      </td>
-                      <td style={{ color: '#8696a0', fontSize: 12 }}>{v.mobile || '—'}</td>
-                      <td style={{ color: '#8696a0' }}>{v.assembly || v.AssemblyName || '—'}</td>
-                      <td style={{ color: '#8696a0', fontSize: 11 }}>
-                        {v.confirmed_at ? new Date(v.confirmed_at).toLocaleDateString() : '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {volunteers.map((v, i) => {
+                    const codeVal = v.wtl_code || v.ptc_code
+                    return (
+                      <tr key={codeVal || v.epic_no || i}>
+                        <td style={{ color: '#8696a0' }}>{(page - 1) * 20 + i + 1}</td>
+                        <td>{v.name || v.Name}</td>
+                        <td>
+                          <Link to={`/admin/voters/${v.epic_no}`} style={{ color: '#64b5f6', fontSize: 12 }}>{v.epic_no}</Link>
+                        </td>
+                        <td>
+                          {codeVal
+                            ? <Link to={`/admin/generated-voters/${codeVal}`} style={{ color: '#43a047', fontSize: 12 }}>{codeVal}</Link>
+                            : '—'
+                          }
+                        </td>
+                        <td style={{ color: '#8696a0', fontSize: 12 }}>{v.mobile || '—'}</td>
+                        <td style={{ color: '#8696a0' }}>{v.assembly || v.AssemblyName || '—'}</td>
+                        <td style={{ color: '#8696a0', fontSize: 11 }}>
+                          {v.confirmed_at ? new Date(v.confirmed_at).toLocaleDateString() : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

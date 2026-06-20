@@ -39,17 +39,17 @@ export default function BoothAgentRequestsPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const handleAction = async (ptcCode, action) => {
+  const handleAction = async (wtlCode, action) => {
     if (!window.confirm(`Are you sure you want to ${action} this booth agent request?`)) return
-    setActionLoading((prev) => ({ ...prev, [ptcCode]: action }))
+    setActionLoading((prev) => ({ ...prev, [wtlCode]: action }))
     try {
-      if (action === 'confirm') await admin.confirmBoothAgent(ptcCode)
-      else                      await admin.rejectBoothAgent(ptcCode)
+      if (action === 'confirm') await admin.confirmBoothAgent(wtlCode)
+      else                      await admin.rejectBoothAgent(wtlCode)
       loadData()
     } catch (err) {
       alert(err.message || `Failed to ${action} request`)
     } finally {
-      setActionLoading((prev) => { const n = { ...prev }; delete n[ptcCode]; return n })
+      setActionLoading((prev) => { const n = { ...prev }; delete n[wtlCode]; return n })
     }
   }
 
@@ -92,7 +92,7 @@ export default function BoothAgentRequestsPage() {
                     <th>#</th>
                     <th>Name</th>
                     <th>EPIC No</th>
-                    <th>PTC Code</th>
+                    <th>WTL Code</th>
                     <th>Booth No</th>
                     <th>Mobile</th>
                     <th>Requested At</th>
@@ -103,8 +103,9 @@ export default function BoothAgentRequestsPage() {
                 <tbody>
                   {requests.map((r, i) => {
                     const status    = r.status || 'pending'
-                    const key       = r.ptc_code || r.epic_no || i
-                    const isLoading = actionLoading[r.ptc_code]
+                    const codeVal   = r.wtl_code || r.ptc_code
+                    const key       = codeVal || r.epic_no || i
+                    const isLoading = actionLoading[codeVal]
                     return (
                       <tr key={key}>
                         <td style={{ color: '#8696a0' }}>{(page - 1) * 20 + i + 1}</td>
@@ -113,8 +114,8 @@ export default function BoothAgentRequestsPage() {
                           <Link to={`/admin/voters/${r.epic_no}`} style={{ color: '#64b5f6', fontSize: 12 }}>{r.epic_no}</Link>
                         </td>
                         <td>
-                          {r.ptc_code
-                            ? <Link to={`/admin/generated-voters/${r.ptc_code}`} style={{ color: '#43a047', fontSize: 12 }}>{r.ptc_code}</Link>
+                          {codeVal
+                            ? <Link to={`/admin/generated-voters/${codeVal}`} style={{ color: '#43a047', fontSize: 12 }}>{codeVal}</Link>
                             : '—'
                           }
                         </td>
@@ -135,14 +136,14 @@ export default function BoothAgentRequestsPage() {
                               <>
                                 <button
                                   className="btn-action btn-confirm"
-                                  onClick={() => handleAction(r.ptc_code, 'confirm')}
+                                  onClick={() => handleAction(codeVal, 'confirm')}
                                   disabled={!!isLoading}
                                 >
                                   {isLoading === 'confirm' ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-check-lg" /> Confirm</>}
                                 </button>
                                 <button
                                   className="btn-action btn-reject"
-                                  onClick={() => handleAction(r.ptc_code, 'reject')}
+                                  onClick={() => handleAction(codeVal, 'reject')}
                                   disabled={!!isLoading}
                                 >
                                   {isLoading === 'reject' ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-x-lg" /> Reject</>}

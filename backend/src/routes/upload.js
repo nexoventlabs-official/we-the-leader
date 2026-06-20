@@ -85,14 +85,14 @@ router.get('/:token', async (req, res) => {
 
     // Already has a generated card
     const genDoc = await db.collection('generated_voters').findOne(
-      { EPIC_NO: epicNo }, { projection: { card_url: 1, VOTER_NAME: 1, ptc_code: 1 } },
+      { EPIC_NO: epicNo }, { projection: { card_url: 1, VOTER_NAME: 1, wtl_code: 1 } },
     );
     if (genDoc && genDoc.card_url) {
       return res.send(statusPage(
         '✅ Already Registered!',
         `Your Digital Member ID Card has already been generated.<br><br>
          <strong>${genDoc.VOTER_NAME || ''}</strong><br>
-         WTL Code: <strong>${genDoc.ptc_code || ''}</strong><br><br>
+         WTL Code: <strong>${genDoc.wtl_code || ''}</strong><br><br>
          Please check your WhatsApp — your card was sent there.<br>
          If you need it again, send <strong>"hi"</strong> to the WhatsApp bot.`,
         '#0a220a', '#5cf05c'
@@ -589,7 +589,7 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
         PART_NO:       partNo,
         booth:         partNo,
         mobile,        MOBILE_NO: mobile,
-        ptc_code:      wtlCode,
+        wtl_code:      wtlCode,
       };
 
       const frontBuffer = await generateCard(voterData, photoBuffer);
@@ -603,7 +603,7 @@ router.post('/:token', upload.single('photo'), async (req, res) => {
         { EPIC_NO: epicNo },
         {
           $set: {
-            EPIC_NO: epicNo, ptc_code: wtlCode,
+            EPIC_NO: epicNo, wtl_code: wtlCode,
             photo_url: photoUrl, card_url: frontUrl, back_url: backUrl, combined_url: frontUrl,
             generated_at: now,
             VOTER_NAME:    pending.voter_name    || '',

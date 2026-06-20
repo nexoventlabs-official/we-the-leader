@@ -95,9 +95,9 @@ export default function VerifyPage() {
               {(v.father_name || v.FatherName) && (
                 <div style={{ fontSize: 12, color: 'var(--color-ash)' }}>S/o, D/o: {v.father_name || v.FatherName}</div>
               )}
-              {v.ptc_code && (
+              {(v.wtl_code || v.ptc_code) && (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(63, 226, 128, 0.05)', border: '1px solid var(--color-signal-mint)', borderRadius: 20, padding: '2px 10px', fontSize: 11, color: 'var(--color-signal-mint)', fontWeight: 500, width: 'fit-content' }}>
-                  <i className="bi bi-qr-code" /> PTC: {v.ptc_code}
+                  <i className="bi bi-qr-code" /> WTL: {v.wtl_code || v.ptc_code}
                 </div>
               )}
             </div>

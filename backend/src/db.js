@@ -66,7 +66,9 @@ async function ensureAppIndexes() {
 
     await db.collection('generated_voters').createIndex({ EPIC_NO: 1 },        { unique: true, background: true });
     await db.collection('generated_voters').createIndex({ MOBILE_NO: 1 },      { background: true });
+    await db.collection('generated_voters').createIndex({ wtl_code: 1 },        { unique: true, sparse: true, background: true });
     await db.collection('generated_voters').createIndex({ ptc_code: 1 },        { unique: true, sparse: true, background: true });
+    await db.collection('generated_voters').createIndex({ referred_by_wtl: 1 }, { background: true });
     await db.collection('generated_voters').createIndex({ referred_by_ptc: 1 }, { background: true });
 
     await db.collection('generation_stats').createIndex({ epic_no: 1 },    { unique: true, background: true });
@@ -76,8 +78,10 @@ async function ensureAppIndexes() {
     await db.collection('otp_sessions').createIndex({ created_at: 1 }, { expireAfterSeconds: 600, background: true });
 
     // Unique indexes prevent TOCTOU races on volunteer/booth requests
-    await db.collection('volunteer_requests').createIndex(   { ptc_code: 1 }, { unique: true, background: true });
-    await db.collection('booth_agent_requests').createIndex( { ptc_code: 1 }, { unique: true, background: true });
+    await db.collection('volunteer_requests').createIndex(   { wtl_code: 1 }, { unique: true, sparse: true, background: true });
+    await db.collection('volunteer_requests').createIndex(   { ptc_code: 1 }, { unique: true, sparse: true, background: true });
+    await db.collection('booth_agent_requests').createIndex( { wtl_code: 1 }, { unique: true, sparse: true, background: true });
+    await db.collection('booth_agent_requests').createIndex( { ptc_code: 1 }, { unique: true, sparse: true, background: true });
 
     // Deduplication for processed WhatsApp message IDs (TTL 24 h)
     await db.collection('processed_wamids').createIndex({ wamid: 1 },  { unique: true, background: true });

@@ -93,37 +93,40 @@ export default function GeneratedVotersPage() {
                     <th>EPIC No</th>
                     <th>Mobile</th>
                     <th>Assembly</th>
-                    <th>PTC Code</th>
+                    <th>WTL Code</th>
                     <th>Generated At</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {voters.map((v, i) => (
-                    <tr key={v.ptc_code || v.epic_no || i}>
-                      <td style={{ color: '#8696a0' }}>{(page - 1) * 20 + i + 1}</td>
-                      <td>{v.name || v.Name}</td>
-                      <td><code style={{ color: '#e9edef', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>{v.epic_no || v.EpicNo}</code></td>
-                      <td style={{ color: '#8696a0', fontSize: 12 }}>{v.mobile || '—'}</td>
-                      <td style={{ color: '#8696a0' }}>{v.assembly || v.AssemblyName}</td>
-                      <td>
-                        {v.ptc_code
-                          ? <span style={{ color: '#43a047', fontWeight: 600, fontSize: 12 }}>{v.ptc_code}</span>
-                          : <span style={{ color: '#8696a0' }}>—</span>
-                        }
-                      </td>
-                      <td style={{ color: '#8696a0', fontSize: 11 }}>
-                        {v.generated_at ? new Date(v.generated_at).toLocaleDateString() : '—'}
-                      </td>
-                      <td>
-                        {v.ptc_code && (
-                          <Link to={`/admin/generated-voters/${v.ptc_code}`} className="btn-action btn-view">
-                            <i className="bi bi-eye" /> View
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {voters.map((v, i) => {
+                    const codeVal = v.wtl_code || v.ptc_code
+                    return (
+                      <tr key={codeVal || v.epic_no || i}>
+                        <td style={{ color: '#8696a0' }}>{(page - 1) * 20 + i + 1}</td>
+                        <td>{v.name || v.Name}</td>
+                        <td><code style={{ color: '#e9edef', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>{v.epic_no || v.EpicNo}</code></td>
+                        <td style={{ color: '#8696a0', fontSize: 12 }}>{v.mobile || '—'}</td>
+                        <td style={{ color: '#8696a0' }}>{v.assembly || v.AssemblyName}</td>
+                        <td>
+                          {codeVal
+                            ? <span style={{ color: '#43a047', fontWeight: 600, fontSize: 12 }}>{codeVal}</span>
+                            : <span style={{ color: '#8696a0' }}>—</span>
+                          }
+                        </td>
+                        <td style={{ color: '#8696a0', fontSize: 11 }}>
+                          {v.generated_at ? new Date(v.generated_at).toLocaleDateString() : '—'}
+                        </td>
+                        <td>
+                          {codeVal && (
+                            <Link to={`/admin/generated-voters/${codeVal}`} className="btn-action btn-view">
+                              <i className="bi bi-eye" /> View
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -62,18 +62,18 @@ export const chat = {
   getBooth: (epicNo) =>
     api.get(`/api/booth/${epicNo}`),
 
-  getReferralLink: (ptcCode) =>
-    api.get(`/api/referral-link/${ptcCode}`),
+  getReferralLink: (wtlCode) =>
+    api.get(`/api/referral-link/${wtlCode}`),
 
-  getMyMembers: (ptcCode) =>
-    api.get(`/api/my-members/${ptcCode}`),
+  getMyMembers: (wtlCode) =>
+    api.get(`/api/my-members/${wtlCode}`),
 
-  requestVolunteer: (ptcCode, epicNo) =>
-    api.post('/api/request-volunteer', { ptc_code: ptcCode, epic_no: epicNo }),
+  requestVolunteer: (wtlCode, epicNo) =>
+    api.post('/api/request-volunteer', { wtl_code: wtlCode, epic_no: epicNo }),
 
-  requestBoothAgent: (ptcCode, epicNo, boothNo) =>
+  requestBoothAgent: (wtlCode, epicNo, boothNo) =>
     api.post('/api/request-booth-agent', {
-      ptc_code: ptcCode,
+      wtl_code: wtlCode,
       epic_no: epicNo,
       booth_no: boothNo,
     }),
@@ -105,17 +105,17 @@ export const admin = {
   getGeneratedVoters: (params) =>
     api.get('/admin/api/generated-voters', { params }),
 
-  getGeneratedVoterDetail: (ptcCode) =>
-    api.get(`/admin/api/generated-voters/${ptcCode}`),
+  getGeneratedVoterDetail: (wtlCode) =>
+    api.get(`/admin/api/generated-voters/${wtlCode}`),
 
   getVolunteerRequests: (params) =>
     api.get('/admin/api/volunteer-requests', { params }),
 
-  confirmVolunteer: (ptcCode) =>
-    api.post(`/admin/api/volunteer-requests/${ptcCode}/confirm`),
+  confirmVolunteer: (wtlCode) =>
+    api.post(`/admin/api/volunteer-requests/${wtlCode}/confirm`),
 
-  rejectVolunteer: (ptcCode) =>
-    api.post(`/admin/api/volunteer-requests/${ptcCode}/reject`),
+  rejectVolunteer: (wtlCode) =>
+    api.post(`/admin/api/volunteer-requests/${wtlCode}/reject`),
 
   getConfirmedVolunteers: (params) =>
     api.get('/admin/api/confirmed-volunteers', { params }),
@@ -123,11 +123,11 @@ export const admin = {
   getBoothAgentRequests: (params) =>
     api.get('/admin/api/booth-agent-requests', { params }),
 
-  confirmBoothAgent: (ptcCode) =>
-    api.post(`/admin/api/booth-agent-requests/${ptcCode}/confirm`),
+  confirmBoothAgent: (wtlCode) =>
+    api.post(`/admin/api/booth-agent-requests/${wtlCode}/confirm`),
 
-  rejectBoothAgent: (ptcCode) =>
-    api.post(`/admin/api/booth-agent-requests/${ptcCode}/reject`),
+  rejectBoothAgent: (wtlCode) =>
+    api.post(`/admin/api/booth-agent-requests/${wtlCode}/reject`),
 
   getConfirmedBoothAgents: (params) =>
     api.get('/admin/api/confirmed-booth-agents', { params }),

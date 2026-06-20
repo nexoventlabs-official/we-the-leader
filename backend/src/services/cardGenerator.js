@@ -114,8 +114,8 @@ async function generateCard(voter, photoBuffer = null) {
   const assembly = (clean(voter.assembly_name || voter.ASSEMBLY_NAME || '').trim().toUpperCase()) || '-';
   const booth    = clean(voter.part_no || voter.PART_NO || voter.booth || voter.booth_no || '') || '-';
   const district = (clean(voter.district || voter.DISTRICT || voter.DISTRICT_NAME || '').trim().toUpperCase()) || '-';
-  const ptcCode  = clean(voter.ptc_code || '');
-  const memberId = ptcCode || `WTL-${epicNo.slice(-6)}`;
+  const wtlCode  = clean(voter.wtl_code || voter.ptc_code || '');
+  const memberId = wtlCode || `WTL-${epicNo.slice(-6)}`;
 
   // Generate QR code pointing to the verification URL for this EPIC
   const baseUrl  = process.env.BASE_URL || 'https://we-the-leader.onrender.com';

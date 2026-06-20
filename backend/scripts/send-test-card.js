@@ -48,7 +48,7 @@ async function sendWAImage(imageUrl, caption) {
     DISTRICT_NAME: 'Chennai',
     mobile:        '8106811285',
     MOBILE_NO:     '8106811285',
-    ptc_code:      'PTC-TESTCARD',
+    wtl_code:      'WTL-TESTCARD',
   };
 
   // Use a plain colour block as photo (no real photo needed for test)
@@ -76,7 +76,7 @@ async function sendWAImage(imageUrl, caption) {
   console.log('[4/4] Sending to WhatsApp...');
   const fid = await sendWAImage(
     frontUrl,
-    '🪪 *Digital Member ID Card — FRONT* (TEST)\n👤 Test Member\n🔖 PTC-TESTCARD\n\nWe The Leaders — Lead the Change',
+    '🪪 *Digital Member ID Card — FRONT* (TEST)\n👤 Test Member\n🔖 WTL-TESTCARD\n\nWe The Leaders — Lead the Change',
   );
   console.log(`      ✅ Front sent: ${fid}`);
 

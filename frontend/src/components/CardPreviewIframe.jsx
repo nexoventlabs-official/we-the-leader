@@ -58,8 +58,8 @@ export const CardPreviewIframe = React.forwardRef(({ cardData, width = 340 }, re
       const assembly = String(cardData.assembly_name || cardData.assembly || cardData.ASSEMBLY_NAME || '').toUpperCase()
       const booth = String(cardData.part_no || cardData.booth_no || cardData.PART_NO || '')
       const district = String(cardData.district || cardData.DISTRICT || cardData.DISTRICT_NAME || '').toUpperCase()
-      const ptcCode = cardData.ptc_code || cardData.PTC_CODE || ''
-      const midVal = ptcCode || (epic ? `WTL-${epic.slice(-6)}` : '')
+      const wtlCode = cardData.wtl_code || cardData.ptc_code || cardData.PTC_CODE || ''
+      const midVal = wtlCode || (epic ? `WTL-${epic.slice(-6)}` : '')
       const photoUrl = cardData.photo_url || cardData.PHOTO_URL || ''
 
       if (nameInput) nameInput.value = name

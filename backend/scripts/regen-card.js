@@ -53,7 +53,7 @@ async function sendWAImage(imageUrl, caption) {
     part_no:       doc.PART_NO       || '', PART_NO:       doc.PART_NO       || '',
     booth:         doc.PART_NO       || '',
     mobile: MOBILE, MOBILE_NO: MOBILE,
-    ptc_code: doc.ptc_code || '',
+    wtl_code: doc.wtl_code || doc.ptc_code || '',
   };
 
   console.log('Generating front card...');
@@ -81,7 +81,7 @@ async function sendWAImage(imageUrl, caption) {
     `👤 Name     : ${doc.VOTER_NAME}`,
     `🗳️  EPIC No  : ${epicNo}`,
     `🏛️  Assembly : ${doc.ASSEMBLY_NAME}`,
-    `🔖 WTL Code : ${doc.ptc_code || ''}`,
+    `🔖 WTL Code : ${doc.wtl_code || doc.ptc_code || ''}`,
     '', 'We The Leaders — Lead the Change',
   ].join('\n');
 

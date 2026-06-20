@@ -6,6 +6,20 @@ import { chat, publicApi } from '../api'
 import { FlipCard3D } from '../components/FlipCard3D'
 import '../styles/chatbot.css'
 
+// ── Read referral params from landing URL (?ref=WTL-XXXX&rid=REF-XXXX)
+const getReferralParams = () => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    const ref = p.get('ref') || ''
+    const rid = p.get('rid') || ''
+    // Validate format before using
+    if (/^WTL-[0-9A-F]{8}$/i.test(ref) && /^REF-[0-9A-F]{8}$/i.test(rid)) {
+      return { ref, rid }
+    }
+  } catch { /* ignore */ }
+  return { ref: '', rid: '' }
+}
+
 // ── Constants ──────────────────────────────────────────────
 const S = {
   WELCOME:       'WELCOME',
@@ -192,8 +206,54 @@ function VoterCardMsg({ voter, isLatest, chatState, onConfirm, onRetry, disabled
   )
 }
 
-function GeneratedCardMsg({ card, isNew = false }) {
-  const c = card || {}
+// ── Referral Link Message ────────────────────────────────────
+function ReferralLinkMsg({ link }) {
+  const [copied, setCopied] = useState(false)
+  const waShareUrl = link
+    ? `https://wa.me/?text=${encodeURIComponent('Join We The Leaders! Generate your free Digital Member ID Card here: ' + link)}`
+    : ''
+
+  return (
+    <div className="referral-card info-card">
+      <div className="info-card-header">
+        <i className="bi bi-link-45deg" /> Your Referral Link
+      </div>
+      {link ? (
+        <>
+          <div className="referral-link-box">{link}</div>
+          <div className="referral-actions">
+            <button
+              className="btn-copy"
+              onClick={() => {
+                navigator.clipboard?.writeText(link).catch(() => {})
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+            >
+              <i className={`bi bi-${copied ? 'check-lg' : 'clipboard'}`} />
+              {copied ? ' Copied!' : ' Copy Link'}
+            </button>
+            <a
+              href={waShareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-whatsapp-share"
+            >
+              <i className="bi bi-whatsapp" /> Share on WhatsApp
+            </a>
+          </div>
+          <p className="referral-hint">
+            <i className="bi bi-people-fill" /> Everyone who joins via your link appears in your <strong>My Members</strong> list.
+          </p>
+        </>
+      ) : (
+        <p style={{ padding: '10px 12px', fontSize: 12, color: '#8696a0' }}>No link available.</p>
+      )}
+    </div>
+  )
+}
+
+function GeneratedCardMsg({ card, isNew = false }) {  const c = card || {}
   const [fullCardData, setFullCardData] = useState(null)
 
   useEffect(() => {
@@ -250,6 +310,8 @@ export default function ChatbotPage() {
   const profileRef  = useRef(null)
   const voterRef    = useRef(null)
   const stateRef    = useRef(S.WELCOME)
+  // Referral attribution — populated from URL params on mount
+  const referralRef = useRef(getReferralParams())
 
   const messagesEndRef  = useRef(null)
   const fileInputRef    = useRef(null)
@@ -333,7 +395,7 @@ export default function ChatbotPage() {
           photo_url:  res.photo_url  || '',
           epic_no:    res.epic_no    || '',
           voter_name: res.voter_name || '',
-          ptc_code:   res.ptc_code   || '',
+          wtl_code:   res.wtl_code   || res.ptc_code   || '',
         }
         cardRef.current = card
         epicRef.current = card.epic_no
@@ -377,7 +439,7 @@ export default function ChatbotPage() {
           back_url:    res.back_url    || '',
           combined_url: res.combined_url || '',
           photo_url:   res.photo_url   || '',
-          ptc_code:    res.ptc_code    || '',
+          wtl_code:    res.wtl_code    || res.ptc_code    || '',
         }
         cardRef.current = card
         saveCache(card, {})
@@ -407,7 +469,7 @@ export default function ChatbotPage() {
           back_url:    data.back_url    || '',
           combined_url: data.combined_url || '',
           photo_url:   data.photo_url   || '',
-          ptc_code:    data.ptc_code    || '',
+          wtl_code:    data.wtl_code    || data.ptc_code    || '',
         }
         cardRef.current = card
         saveCache(card, {})
@@ -458,25 +520,43 @@ export default function ChatbotPage() {
       formData.append('mobile', mobileRef.current)
       formData.append('photo', blob, 'photo.jpg')
 
+      // Pass referral attribution if user came via a referral link
+      const { ref, rid } = referralRef.current
+      if (ref) formData.append('ref', ref)
+      if (rid) formData.append('rid', rid)
+
       const res = await chat.generateCard(formData)
 
       const card = {
-        card_url:     res.card_url,
-        back_url:     res.back_url,
-        combined_url: res.combined_url,
-        epic_no:      res.epic_no || epicRef.current,
-        ptc_code:     res.ptc_code,
-        name:         voterRef.current?.name || voterRef.current?.VOTER_NAME || res.voter_name,
-        assembly_name:voterRef.current?.assembly_name || voterRef.current?.assembly || voterRef.current?.ASSEMBLY_NAME,
-        district:     voterRef.current?.district || voterRef.current?.DISTRICT || voterRef.current?.DISTRICT_NAME,
-        part_no:      voterRef.current?.part_no || voterRef.current?.PartNo || voterRef.current?.PART_NO,
-        photo_url:    res.photo_url || voterRef.current?.photo_url
+        card_url:      res.card_url,
+        back_url:      res.back_url,
+        combined_url:  res.combined_url,
+        epic_no:       res.epic_no || epicRef.current,
+        wtl_code:      res.wtl_code || res.ptc_code,
+        referral_link: res.referral_link || '',
+        name:          voterRef.current?.name || voterRef.current?.VOTER_NAME || res.voter_name,
+        assembly_name: voterRef.current?.assembly_name || voterRef.current?.assembly || voterRef.current?.ASSEMBLY_NAME,
+        district:      voterRef.current?.district || voterRef.current?.DISTRICT || voterRef.current?.DISTRICT_NAME,
+        part_no:       voterRef.current?.part_no || voterRef.current?.PartNo || voterRef.current?.PART_NO,
+        photo_url:     res.photo_url || voterRef.current?.photo_url,
       }
       cardRef.current = card
       saveCache(card, profileRef.current || {})
 
-      await botSay('🎉 Your card is ready!', 200)
+      await botSay('🎉 Your Digital Member ID Card is ready!', 200)
       addMsg('bot', 'generated_card', { card, isNew: true })
+
+      // Auto-show referral link after a short delay so the card message settles
+      if (res.referral_link) {
+        await sleep(900)
+        await botSay(
+          '👥 *Invite others to join We The Leaders!*\nShare your personal referral link below — every person who generates their card using your link will appear in your *My Members* list.',
+          300,
+        )
+        await sleep(400)
+        addMsg('bot', 'referral_link', { link: res.referral_link, wtlCode: res.wtl_code || res.ptc_code })
+      }
+
       setChatState(S.DONE)
     } catch (err) {
       setChatState(S.AWAIT_PHOTO)
@@ -487,12 +567,12 @@ export default function ChatbotPage() {
   const handleBoothNoSubmit = async () => {
     const boothNo = inputValue.trim()
     if (!boothNo) return
-    const ptcCode = cardRef.current?.ptc_code || profileRef.current?.ptc_code
+    const wtlCode = cardRef.current?.wtl_code || cardRef.current?.ptc_code || profileRef.current?.wtl_code || profileRef.current?.ptc_code
     addMsg('user', 'text', { text: `Booth No: ${boothNo}` })
     setInputValue('')
     setIsTyping(true)
     try {
-      const res = await chat.requestBoothAgent(ptcCode, epicRef.current, boothNo)
+      const res = await chat.requestBoothAgent(wtlCode, epicRef.current, boothNo)
       setIsTyping(false)
       await botSay(res.message || '✅ Booth Agent request submitted! Admin will review it shortly.', 200)
     } catch (err) {
@@ -505,7 +585,7 @@ export default function ChatbotPage() {
   // ── Sidebar actions ───────────────────────────────────────
   const handleSidebarAction = async (action) => {
     setSidebarOpen(false)
-    const ptcCode = cardRef.current?.ptc_code || profileRef.current?.ptc_code
+    const wtlCode = cardRef.current?.wtl_code || cardRef.current?.ptc_code || profileRef.current?.wtl_code || profileRef.current?.ptc_code
 
     switch (action) {
       case 'profile': {
@@ -540,13 +620,21 @@ export default function ChatbotPage() {
         break
       }
       case 'referral': {
-        if (!ptcCode) { await botSay('ℹ️ Referral link unavailable.', 200); return }
+        if (!wtlCode) { await botSay('ℹ️ Referral link unavailable.', 200); return }
+        // Use cached link from card if available — avoids a session-auth round-trip
+        const cachedLink = cardRef.current?.referral_link
+        if (cachedLink) {
+          addMsg('bot', 'referral_link', { link: cachedLink, wtlCode })
+          break
+        }
         setIsTyping(true)
         try {
-          const res = await chat.getReferralLink(ptcCode)
+          const res = await chat.getReferralLink(wtlCode)
           setIsTyping(false)
-          const link = res.link || res.referral_link || res.url
-          addMsg('bot', 'referral_link', { link, ptcCode })
+          const link = res.referral_link || res.link || res.url || ''
+          // Cache it on the card ref for future sidebar clicks
+          if (link && cardRef.current) cardRef.current.referral_link = link
+          addMsg('bot', 'referral_link', { link, wtlCode })
         } catch {
           setIsTyping(false)
           await botSay('❌ Unable to load referral link.', 200)
@@ -554,10 +642,10 @@ export default function ChatbotPage() {
         break
       }
       case 'my_members': {
-        if (!ptcCode) { await botSay('ℹ️ Members list unavailable.', 200); return }
+        if (!wtlCode) { await botSay('ℹ️ Members list unavailable.', 200); return }
         setIsTyping(true)
         try {
-          const res = await chat.getMyMembers(ptcCode)
+          const res = await chat.getMyMembers(wtlCode)
           setIsTyping(false)
           const members = res.members || res.data || (Array.isArray(res) ? res : [])
           addMsg('bot', 'members_list', { members })
@@ -568,10 +656,10 @@ export default function ChatbotPage() {
         break
       }
       case 'volunteer': {
-        if (!ptcCode || !epicRef.current) { await botSay('ℹ️ Volunteer request unavailable.', 200); return }
+        if (!wtlCode || !epicRef.current) { await botSay('ℹ️ Volunteer request unavailable.', 200); return }
         setIsTyping(true)
         try {
-          const res = await chat.requestVolunteer(ptcCode, epicRef.current)
+          const res = await chat.requestVolunteer(wtlCode, epicRef.current)
           setIsTyping(false)
           await botSay(res.message || '✅ Volunteer request submitted! Admin will review it shortly.', 200)
         } catch (err) {
@@ -683,7 +771,7 @@ export default function ChatbotPage() {
               <h4>{msg.profile?.name || 'Member'}</h4>
               <p>{[msg.profile?.assembly, msg.profile?.district].filter(Boolean).join(', ')}</p>
               {(msg.profile?.epic_no || epicRef.current) && <p>EPIC: {msg.profile?.epic_no || epicRef.current}</p>}
-              {msg.profile?.ptc_code && <p className="ptc">PTC: {msg.profile.ptc_code}</p>}
+              {(msg.profile?.wtl_code || msg.profile?.ptc_code) && <p className="wtl">WTL: {msg.profile.wtl_code || msg.profile.ptc_code}</p>}
             </div>
           </div>
         )
@@ -705,20 +793,7 @@ export default function ChatbotPage() {
         )
       }
       case 'referral_link':
-        return (
-          <div className="referral-card info-card">
-            <div className="info-card-header"><i className="bi bi-link-45deg" /> Your Referral Link</div>
-            <div className="referral-link-box">{msg.link || 'No link available'}</div>
-            {msg.link && (
-              <button className="btn-copy" onClick={() => {
-                navigator.clipboard?.writeText(msg.link).catch(() => {})
-                botSay('✅ Referral link copied!', 100)
-              }}>
-                <i className="bi bi-clipboard" /> Copy Link
-              </button>
-            )}
-          </div>
-        )
+        return <ReferralLinkMsg link={msg.link || ''} />
       case 'members_list': {
         const members = msg.members || []
         return (

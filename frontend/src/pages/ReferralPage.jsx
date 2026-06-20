@@ -2,21 +2,21 @@ import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export default function ReferralPage() {
-  const { ptcCode, referralId } = useParams()
+  const { wtlCode, referralId } = useParams()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (ptcCode && referralId) {
+    if (wtlCode && referralId) {
       try {
         localStorage.setItem('wtl_referral', JSON.stringify({
-          ptcCode,
+          wtlCode,
           referralId,
           timestamp: Date.now(),
         }))
       } catch {}
     }
     navigate('/', { replace: true })
-  }, [ptcCode, referralId, navigate])
+  }, [wtlCode, referralId, navigate])
 
   return null
 }

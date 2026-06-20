@@ -6,7 +6,7 @@
  *  - OTPs stored as SHA-256 hash (never plaintext)
  *  - OTP purpose enforced — login OTP cannot verify pin-reset flow
  *  - OTP deleted from DB immediately after successful first use
- *  - Existing ptc_code preserved on card re-generation
+ *  - Existing wtl_code preserved on card re-generation
  *  - File type validated by magic bytes (file-type library)
  *  - booth_no validated: digits only, max 6 chars
  *  - EPIC validated before any DB query in profile/booth routes
@@ -98,7 +98,7 @@ function normaliseVoter(doc) {
 // ── Helpers ───────────────────────────────────────────────────────
 function nowUTC() { return new Date(); }
 
-function generatePtcCode() {
+function generateWtlCode() {
   return 'WTL-' + crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
@@ -223,7 +223,7 @@ router.post('/verify-otp', chatVerifyOtpLimiter, async (req, res) => {
         back_url:   s.back_url || g.back_url  || '',
         voter_name: name,
         photo_url:  g.photo_url || '',
-        ptc_code:   g.ptc_code  || '',
+        wtl_code:   g.wtl_code  || '',
       });
     }
 
@@ -287,7 +287,7 @@ router.post('/check-mobile', async (req, res) => {
         result.back_url   = s.back_url || g.back_url  || '';
         result.voter_name = name;
         result.photo_url  = g.photo_url || '';
-        result.ptc_code   = g.ptc_code  || '';
+        result.wtl_code   = g.wtl_code  || '';
       }
       return res.json(result);
     }
@@ -525,7 +525,7 @@ router.post('/validate-epic', chatValidateEpicLimiter, async (req, res) => {
     const db       = getDb();
     const existing = await db.collection('generated_voters').findOne(
       { EPIC_NO: epicNo },
-      { projection: { card_url: 1, back_url: 1, combined_url: 1, photo_url: 1, ptc_code: 1, VOTER_NAME: 1 } },
+      { projection: { card_url: 1, back_url: 1, combined_url: 1, photo_url: 1, wtl_code: 1, VOTER_NAME: 1 } },
     );
     if (existing?.card_url) {
       return res.status(409).json({
@@ -536,7 +536,7 @@ router.post('/validate-epic', chatValidateEpicLimiter, async (req, res) => {
         back_url:    existing.back_url    || '',
         combined_url: existing.combined_url || '',
         photo_url:   existing.photo_url   || '',
-        ptc_code:    existing.ptc_code    || '',
+        wtl_code:    existing.wtl_code    || '',
         voter_name:  existing.VOTER_NAME  || '',
         epic_no:     epicNo,
       });
@@ -558,7 +558,7 @@ router.post('/validate-epic', chatValidateEpicLimiter, async (req, res) => {
 // ────────────────────────────────────────────────────────────────
 //  POST /generate-card  (photo upload)
 //  SECURITY: distributed lock prevents duplicate generation;
-//            existing ptc_code preserved on re-generation;
+//            existing wtl_code preserved on re-generation;
 //            magic-byte file validation.
 // ────────────────────────────────────────────────────────────────
 router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), async (req, res) => {
@@ -582,7 +582,7 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
     // ── Hard block: already registered ────────────────────────────
     const existingCard = await db.collection('generated_voters').findOne(
       { EPIC_NO: epicNo },
-      { projection: { card_url: 1, back_url: 1, ptc_code: 1, VOTER_NAME: 1 } },
+      { projection: { card_url: 1, back_url: 1, wtl_code: 1, VOTER_NAME: 1 } },
     );
     if (existingCard?.card_url) {
       return res.status(409).json({
@@ -591,7 +591,7 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
         message:            'This EPIC is already registered. Your existing card is shown below.',
         card_url:           existingCard.card_url,
         back_url:           existingCard.back_url   || '',
-        ptc_code:           existingCard.ptc_code   || '',
+        wtl_code:           existingCard.wtl_code   || '',
         voter_name:         existingCard.VOTER_NAME || '',
         epic_no:            epicNo,
       });
@@ -630,13 +630,44 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
     }
 
     try {
-      // Preserve existing ptc_code to protect referral links
+      // Preserve existing wtl_code to protect referral links
       const existingGen = await db.collection('generated_voters').findOne(
-        { EPIC_NO: epicNo }, { projection: { ptc_code: 1 } }
+        { EPIC_NO: epicNo }, { projection: { wtl_code: 1, referral_id: 1, referral_link: 1 } }
       );
-      const ptcCode   = existingGen?.ptc_code || generatePtcCode();
+      const wtlCode   = existingGen?.wtl_code || generateWtlCode();
       const config    = require('../config');
+
+      // ── Referral attribution ───────────────────────────────────
+      // Accept ref=<wtlCode>&rid=<referralId> from the request body
+      // (frontend passes them when the user landed via a referral link)
+      const rawRef    = String(req.body.ref  || '').trim();
+      const rawRid    = String(req.body.rid  || '').trim();
+      // Validate format — avoid injecting arbitrary values into DB
+      const refWtlOk  = /^WTL-[0-9A-F]{8}$/.test(rawRef);
+      const refRidOk  = /^REF-[0-9A-F]{8}$/.test(rawRid);
+      const refWtl    = refWtlOk ? rawRef : '';
+      const refRid    = refRidOk ? rawRid : '';
+
+      // Verify the referral actually exists (prevent spoofed codes)
+      let verifiedRefWtl = '';
+      let verifiedRefRid = '';
+      if (refWtl && refRid) {
+        const referrer = await db.collection('generated_voters').findOne(
+          { wtl_code: refWtl, referral_id: refRid },
+          { projection: { _id: 1 } }
+        );
+        if (referrer) {
+          verifiedRefWtl = refWtl;
+          verifiedRefRid = refRid;
+        }
+      }
+
+      // Generate referral link for this new member
+      // Preserve existing referral_id if card is being re-generated
+      const referralId   = existingGen?.referral_id   || ('REF-' + crypto.randomBytes(4).toString('hex').toUpperCase());
+      const referralLink = existingGen?.referral_link  || (config.baseUrl + '/refer/' + wtlCode + '/' + referralId);
       const verifyUrl = `${config.baseUrl}/verify/${epicNo}`;
+
 
       const voterData = {
         epic_no:       voter.epic_no,
@@ -646,7 +677,7 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
         part_no:       voter.part_no,
         PART_NO:       voter.part_no,
         booth:         voter.part_no,
-        ptc_code:      ptcCode,
+        wtl_code:      wtlCode,
         verify_url:    verifyUrl,
         VOTER_NAME:    voter.name,
         ASSEMBLY_NAME: voter.assembly_name,
@@ -687,24 +718,37 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
         { EPIC_NO: epicNo },
         {
           $set: {
-            EPIC_NO:       epicNo,
-            ptc_code:      ptcCode,
-            photo_url:     photoUrl,
-            card_url:      cardUrl,
-            back_url:      backUrl,
-            combined_url:  combinedUrl,
-            generated_at:  now,
-            VOTER_NAME:    voter.name,
-            ASSEMBLY_NAME: voter.assembly_name,
-            DISTRICT_NAME: voter.district,
-            ASSEMBLY_NO:   voter.assembly_no,
-            PART_NO:       voter.part_no,
-            ...(mobile ? { MOBILE_NO: mobile } : {}),
+            EPIC_NO:        epicNo,
+            wtl_code:       wtlCode,
+            photo_url:      photoUrl,
+            card_url:       cardUrl,
+            back_url:       backUrl,
+            combined_url:   combinedUrl,
+            generated_at:   now,
+            VOTER_NAME:     voter.name,
+            ASSEMBLY_NAME:  voter.assembly_name,
+            DISTRICT_NAME:  voter.district,
+            ASSEMBLY_NO:    voter.assembly_no,
+            PART_NO:        voter.part_no,
+            referral_id:    referralId,
+            referral_link:  referralLink,
+            source:         'web',
+            ...(mobile           ? { MOBILE_NO:               mobile           } : {}),
+            ...(verifiedRefWtl   ? { referred_by_wtl:          verifiedRefWtl   } : {}),
+            ...(verifiedRefRid   ? { referred_by_referral_id:  verifiedRefRid   } : {}),
           },
           $setOnInsert: { created_at: now },
         },
         { upsert: true }
       );
+
+      // Increment referrer's count (fire-and-forget, non-blocking)
+      if (verifiedRefWtl) {
+        db.collection('generated_voters').updateOne(
+          { wtl_code: verifiedRefWtl },
+          { $inc: { referred_members_count: 1 } }
+        ).catch(() => {});
+      }
 
       // Upsert generation_stats
       await db.collection('generation_stats').updateOne(
@@ -718,15 +762,17 @@ router.post('/generate-card', chatGenerateCardLimiter, upload.single('photo'), a
       );
 
       return res.json({
-        success:      true,
-        card_url:     cardUrl,
-        back_url:     backUrl,
-        combined_url: combinedUrl,
-        photo_url:    photoUrl,
-        epic_no:      epicNo,
-        voter_name:   voter.name,
-        ptc_code:     ptcCode,
-        message:      'Card generated successfully',
+        success:       true,
+        card_url:      cardUrl,
+        back_url:      backUrl,
+        combined_url:  combinedUrl,
+        photo_url:     photoUrl,
+        epic_no:       epicNo,
+        voter_name:    voter.name,
+        wtl_code:      wtlCode,
+        referral_id:   referralId,
+        referral_link: referralLink,
+        message:       'Card generated successfully',
       });
     } finally {
       // Always release the lock
@@ -764,7 +810,7 @@ router.get('/profile/:epicNo', async (req, res) => {
       epic_no:            epicNo,
       assembly:           voter.assembly_name,
       district:           voter.district,
-      ptc_code:           genDoc.ptc_code   || '',
+      wtl_code:           genDoc.wtl_code   || genDoc.ptc_code || '',
       card_url:           stat.card_url     || genDoc.card_url     || '',
       back_url:           stat.back_url     || genDoc.back_url     || '',
       combined_url:       stat.combined_url || genDoc.combined_url || '',
@@ -805,23 +851,23 @@ router.get('/booth/:epicNo', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  GET /referral-link/:ptcCode  — requires verified session
+//  GET /referral-link/:wtlCode  — requires verified session
 // ────────────────────────────────────────────────────────────────
-router.get('/referral-link/:ptcCode', async (req, res) => {
+router.get('/referral-link/:wtlCode', async (req, res) => {
   try {
     // Must have a verified mobile session
     if (!req.session?.verified_mobile) {
       return res.status(401).json({ success: false, message: 'Authentication required.' });
     }
 
-    const ptcCode = String(req.params.ptcCode || '').trim();
-    if (!ptcCode || !/^PTC-[0-9A-F]{8}$/.test(ptcCode)) {
-      return res.status(400).json({ success: false, message: 'Invalid PTC code format' });
+    const wtlCode = String(req.params.wtlCode || '').trim();
+    if (!wtlCode || !/^WTL-[0-9A-F]{8}$/.test(wtlCode)) {
+      return res.status(400).json({ success: false, message: 'Invalid WTL code format' });
     }
 
     const db  = getDb();
     const doc = await db.collection('generated_voters').findOne(
-      { ptc_code: ptcCode },
+      { wtl_code: wtlCode },
       { projection: { referral_id: 1, referral_link: 1, MOBILE_NO: 1 } }
     );
 
@@ -837,10 +883,10 @@ router.get('/referral-link/:ptcCode', async (req, res) => {
     }
 
     const rid  = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-    const link = `${require('../config').baseUrl}/refer/${ptcCode}/${rid}`;
+    const link = `${require('../config').baseUrl}/refer/${wtlCode}/${rid}`;
 
     await db.collection('generated_voters').updateOne(
-      { ptc_code: ptcCode },
+      { wtl_code: wtlCode },
       { $set: { referral_id: rid, referral_link: link } }
     );
 
@@ -852,25 +898,25 @@ router.get('/referral-link/:ptcCode', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  GET /my-members/:ptcCode  — requires verified session
+//  GET /my-members/:wtlCode  — requires verified session
 // ────────────────────────────────────────────────────────────────
-router.get('/my-members/:ptcCode', async (req, res) => {
+router.get('/my-members/:wtlCode', async (req, res) => {
   try {
     // Must have a verified mobile session
     if (!req.session?.verified_mobile) {
       return res.status(401).json({ success: false, message: 'Authentication required.' });
     }
 
-    const ptcCode = String(req.params.ptcCode || '').trim();
-    if (!ptcCode || !/^PTC-[0-9A-F]{8}$/.test(ptcCode)) {
-      return res.status(400).json({ success: false, message: 'Invalid PTC code format' });
+    const wtlCode = String(req.params.wtlCode || '').trim();
+    if (!wtlCode || !/^WTL-[0-9A-F]{8}$/.test(wtlCode)) {
+      return res.status(400).json({ success: false, message: 'Invalid WTL code format' });
     }
 
     const db = getDb();
 
-    // Verify the session mobile owns this PTC code
+    // Verify the session mobile owns this WTL code
     const owner = await db.collection('generated_voters').findOne(
-      { ptc_code: ptcCode }, { projection: { MOBILE_NO: 1 } }
+      { wtl_code: wtlCode }, { projection: { MOBILE_NO: 1 } }
     );
     if (!owner) return res.status(404).json({ success: false, message: 'Member not found' });
     if (owner.MOBILE_NO && owner.MOBILE_NO !== req.session.verified_mobile) {
@@ -879,8 +925,8 @@ router.get('/my-members/:ptcCode', async (req, res) => {
 
     const members = await db.collection('generated_voters')
       .find(
-        { referred_by_ptc: ptcCode },
-        { projection: { FM_NAME_EN: 1, LASTNAME_EN: 1, EPIC_NO: 1, ptc_code: 1, generated_at: 1 } }
+        { referred_by_wtl: wtlCode },
+        { projection: { FM_NAME_EN: 1, LASTNAME_EN: 1, EPIC_NO: 1, wtl_code: 1, generated_at: 1 } }
       )
       .sort({ generated_at: -1 })
       .limit(50)
@@ -889,7 +935,7 @@ router.get('/my-members/:ptcCode', async (req, res) => {
     const result = members.map(m => ({
       name:     `${m.FM_NAME_EN || ''} ${m.LASTNAME_EN || ''}`.trim(),
       epic_no:  m.EPIC_NO  || '',
-      ptc_code: m.ptc_code || '',
+      wtl_code: m.wtl_code || '',
     }));
 
     return res.json({ success: true, members: result, total: result.length });
@@ -909,14 +955,14 @@ router.post('/request-volunteer', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Authentication required.' });
     }
 
-    const ptcCode = String(req.body.ptc_code || '').trim();
+    const wtlCode = String(req.body.wtl_code || '').trim();
     const epicNo  = String(req.body.epic_no  || '').trim().toUpperCase();
-    if (!ptcCode) return res.status(400).json({ success: false, message: 'PTC code required' });
+    if (!wtlCode) return res.status(400).json({ success: false, message: 'WTL code required' });
 
     const db  = getDb();
-    const gen = await db.collection('generated_voters').findOne({ ptc_code: ptcCode }) || {};
+    const gen = await db.collection('generated_voters').findOne({ wtl_code: wtlCode }) || {};
 
-    // Verify session mobile owns this PTC code
+    // Verify session mobile owns this WTL code
     if (gen.MOBILE_NO && gen.MOBILE_NO !== req.session.verified_mobile) {
       return res.status(403).json({ success: false, message: 'Access denied.' });
     }
@@ -925,7 +971,7 @@ router.post('/request-volunteer', async (req, res) => {
 
     try {
       await db.collection('volunteer_requests').insertOne({
-        ptc_code:     ptcCode,
+        wtl_code:     wtlCode,
         epic_no:      epicNo || gen.EPIC_NO || '',
         name,
         mobile:       gen.MOBILE_NO    || '',
@@ -936,8 +982,8 @@ router.post('/request-volunteer', async (req, res) => {
       });
     } catch (e) {
       if (e.code === 11000) {
-        // Already submitted (unique index on ptc_code)
-        const existing = await db.collection('volunteer_requests').findOne({ ptc_code: ptcCode });
+        // Already submitted (unique index on wtl_code)
+        const existing = await db.collection('volunteer_requests').findOne({ wtl_code: wtlCode });
         return res.status(400).json({ success: false, message: `Already submitted. Status: ${existing?.status || 'pending'}` });
       }
       throw e;
@@ -961,19 +1007,19 @@ router.post('/request-booth-agent', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Authentication required.' });
     }
 
-    const ptcCode = String(req.body.ptc_code || '').trim();
+    const wtlCode = String(req.body.wtl_code || '').trim();
     const epicNo  = String(req.body.epic_no  || '').trim().toUpperCase();
     const boothNo = String(req.body.booth_no || '').trim().slice(0, 6);
 
-    if (!ptcCode) return res.status(400).json({ success: false, message: 'PTC code required' });
+    if (!wtlCode) return res.status(400).json({ success: false, message: 'WTL code required' });
     if (!boothNo || !/^\d{1,6}$/.test(boothNo)) {
       return res.status(400).json({ success: false, message: 'Invalid booth number. Must be 1–6 digits.' });
     }
 
     const db  = getDb();
-    const gen = await db.collection('generated_voters').findOne({ ptc_code: ptcCode }) || {};
+    const gen = await db.collection('generated_voters').findOne({ wtl_code: wtlCode }) || {};
 
-    // Verify session mobile owns this PTC code
+    // Verify session mobile owns this WTL code
     if (gen.MOBILE_NO && gen.MOBILE_NO !== req.session.verified_mobile) {
       return res.status(403).json({ success: false, message: 'Access denied.' });
     }
@@ -982,7 +1028,7 @@ router.post('/request-booth-agent', async (req, res) => {
 
     try {
       await db.collection('booth_agent_requests').insertOne({
-        ptc_code:     ptcCode,
+        wtl_code:     wtlCode,
         epic_no:      epicNo || gen.EPIC_NO || '',
         name,
         mobile:       gen.MOBILE_NO    || '',
@@ -994,7 +1040,7 @@ router.post('/request-booth-agent', async (req, res) => {
       });
     } catch (e) {
       if (e.code === 11000) {
-        const existing = await db.collection('booth_agent_requests').findOne({ ptc_code: ptcCode });
+        const existing = await db.collection('booth_agent_requests').findOne({ wtl_code: wtlCode });
         return res.status(400).json({ success: false, message: `Already submitted. Status: ${existing?.status || 'pending'}` });
       }
       throw e;

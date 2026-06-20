@@ -4,18 +4,18 @@ import { admin } from '../../api'
 import { CardPreviewIframe } from '../../components/CardPreviewIframe'
 
 export default function GeneratedVoterDetailPage() {
-  const { ptcCode } = useParams()
+  const { wtlCode } = useParams()
   const navigate    = useNavigate()
   const [data, setData]     = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState(null)
 
   useEffect(() => {
-    admin.getGeneratedVoterDetail(ptcCode)
+    admin.getGeneratedVoterDetail(wtlCode)
       .then(setData)
       .catch((err) => setError(err.message || 'Failed to load member'))
       .finally(() => setLoading(false))
-  }, [ptcCode])
+  }, [wtlCode])
 
   if (loading) return <div style={{ padding: 32, textAlign: 'center' }}><div className="spinner-border text-danger" /></div>
   if (error)   return <div style={{ padding: 24, color: '#ef9a9a' }}><i className="bi bi-exclamation-circle me-2" />{error}</div>
@@ -33,7 +33,7 @@ export default function GeneratedVoterDetailPage() {
         </button>
         <div>
           <h1>Member Detail</h1>
-          <p>PTC Code: {ptcCode}</p>
+          <p>WTL Code: {wtlCode}</p>
         </div>
       </div>
 
@@ -62,7 +62,7 @@ export default function GeneratedVoterDetailPage() {
                   { label: 'Name',      value: v.name || v.Name },
                   { label: 'EPIC No',   value: v.epic_no || v.EpicNo },
                   { label: 'Mobile',    value: v.mobile },
-                  { label: 'PTC Code',  value: v.ptc_code || ptcCode },
+                  { label: 'WTL Code',  value: v.wtl_code || v.ptc_code || wtlCode },
                   { label: 'Assembly',  value: v.assembly || v.AssemblyName },
                   { label: 'District',  value: v.district || v.DistrictName },
                   { label: 'Generated', value: v.generated_at ? new Date(v.generated_at).toLocaleString() : undefined },

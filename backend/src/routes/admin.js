@@ -314,7 +314,7 @@ router.get('/api/voters/:epicNo', async (req, res) => {
     voter.last_generated = stat.last_generated ? String(stat.last_generated).slice(0, 19).replace('T', ' ') : '';
     voter.photo_url      = stat.photo_url  || genDoc.photo_url  || '';
     voter.card_url       = stat.card_url   || genDoc.card_url   || '';
-    voter.ptc_code       = genDoc.ptc_code || '';
+    voter.wtl_code       = genDoc.wtl_code || '';
     const mob            = stat.auth_mobile || '';
     voter.auth_mobile_masked = mob.length >= 4 ? `****${mob.slice(-4)}` : '';
 
@@ -346,7 +346,7 @@ router.get('/api/generated-voters', async (req, res) => {
         { EPIC_NO:    { $regex: escaped, $options: 'i' } },
         { FM_NAME_EN: { $regex: escaped, $options: 'i' } },
         { LASTNAME_EN:{ $regex: escaped, $options: 'i' } },
-        { ptc_code:   { $regex: escaped, $options: 'i' } },
+        { wtl_code:   { $regex: escaped, $options: 'i' } },
         { MOBILE_NO:  { $regex: escaped, $options: 'i' } },
       ];
     }
@@ -377,20 +377,20 @@ router.get('/api/generated-voters', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  GET /admin/api/generated-voters/:ptcCode
+//  GET /admin/api/generated-voters/:wtlCode
 // ────────────────────────────────────────────────────────────────
-router.get('/api/generated-voters/:ptcCode', async (req, res) => {
+router.get('/api/generated-voters/:wtlCode', async (req, res) => {
   try {
     const db  = getDb();
-    const doc = await db.collection('generated_voters').findOne({ ptc_code: req.params.ptcCode });
+    const doc = await db.collection('generated_voters').findOne({ wtl_code: req.params.wtlCode });
 
     if (!doc) return res.status(404).json({ success: false, message: 'Not found.' });
 
     const voter    = genDocToDict(doc);
     const referred = await db.collection('generated_voters')
-      .find({ referred_by_ptc: req.params.ptcCode }).sort({ generated_at: -1 }).toArray();
-    const volReq  = await db.collection('volunteer_requests').findOne({ ptc_code: req.params.ptcCode }) || null;
-    const baReq   = await db.collection('booth_agent_requests').findOne({ ptc_code: req.params.ptcCode }) || null;
+      .find({ referred_by_wtl: req.params.wtlCode }).sort({ generated_at: -1 }).toArray();
+    const volReq  = await db.collection('volunteer_requests').findOne({ wtl_code: req.params.wtlCode }) || null;
+    const baReq   = await db.collection('booth_agent_requests').findOne({ wtl_code: req.params.wtlCode }) || null;
 
     return res.json({
       success: true,
@@ -422,19 +422,19 @@ router.get('/api/volunteer-requests', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  POST /admin/api/volunteer-requests/:ptcCode/confirm
+//  POST /admin/api/volunteer-requests/:wtlCode/confirm
 // ────────────────────────────────────────────────────────────────
-router.post('/api/volunteer-requests/:ptcCode/confirm', async (req, res) => {
+router.post('/api/volunteer-requests/:wtlCode/confirm', async (req, res) => {
   try {
     const db = getDb();
     // Verify the member exists before confirming
     const member = await db.collection('generated_voters').findOne(
-      { ptc_code: req.params.ptcCode }, { projection: { _id: 1 } }
+      { wtl_code: req.params.wtlCode }, { projection: { _id: 1 } }
     );
     if (!member) return res.status(404).json({ success: false, message: 'Member not found.' });
 
     const r = await db.collection('volunteer_requests').updateOne(
-      { ptc_code: req.params.ptcCode, status: 'pending' },
+      { wtl_code: req.params.wtlCode, status: 'pending' },
       { $set: { status: 'confirmed', reviewed_at: new Date(), reviewed_by: config.admin.username } }
     );
     return res.json({ success: Boolean(r.modifiedCount) });
@@ -445,13 +445,13 @@ router.post('/api/volunteer-requests/:ptcCode/confirm', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  POST /admin/api/volunteer-requests/:ptcCode/reject
+//  POST /admin/api/volunteer-requests/:wtlCode/reject
 // ────────────────────────────────────────────────────────────────
-router.post('/api/volunteer-requests/:ptcCode/reject', async (req, res) => {
+router.post('/api/volunteer-requests/:wtlCode/reject', async (req, res) => {
   try {
     const db = getDb();
     const r  = await db.collection('volunteer_requests').updateOne(
-      { ptc_code: req.params.ptcCode, status: 'pending' },
+      { wtl_code: req.params.wtlCode, status: 'pending' },
       { $set: { status: 'rejected', reviewed_at: new Date(), reviewed_by: config.admin.username } }
     );
     return res.json({ success: Boolean(r.modifiedCount) });
@@ -469,7 +469,7 @@ router.get('/api/confirmed-volunteers', async (req, res) => {
     const { search, page, perPage } = buildListParams(req);
     const filt = { status: 'confirmed' };
     if (search) {
-      filt.$or = [{ name: { $regex: search, $options: 'i' } }, { ptc_code: { $regex: search, $options: 'i' } }];
+      filt.$or = [{ name: { $regex: search, $options: 'i' } }, { wtl_code: { $regex: search, $options: 'i' } }];
     }
     const db = getDb();
     const { items, total, totalPages } = await paginatedList(db, 'volunteer_requests', filt, { reviewed_at: -1 }, page, perPage);
@@ -497,19 +497,19 @@ router.get('/api/booth-agent-requests', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  POST /admin/api/booth-agent-requests/:ptcCode/confirm
+//  POST /admin/api/booth-agent-requests/:wtlCode/confirm
 // ────────────────────────────────────────────────────────────────
-router.post('/api/booth-agent-requests/:ptcCode/confirm', async (req, res) => {
+router.post('/api/booth-agent-requests/:wtlCode/confirm', async (req, res) => {
   try {
     const db = getDb();
     // Verify the member exists before confirming
     const member = await db.collection('generated_voters').findOne(
-      { ptc_code: req.params.ptcCode }, { projection: { _id: 1 } }
+      { wtl_code: req.params.wtlCode }, { projection: { _id: 1 } }
     );
     if (!member) return res.status(404).json({ success: false, message: 'Member not found.' });
 
     const r = await db.collection('booth_agent_requests').updateOne(
-      { ptc_code: req.params.ptcCode, status: 'pending' },
+      { wtl_code: req.params.wtlCode, status: 'pending' },
       { $set: { status: 'confirmed', reviewed_at: new Date(), reviewed_by: config.admin.username } }
     );
     return res.json({ success: Boolean(r.modifiedCount) });
@@ -520,13 +520,13 @@ router.post('/api/booth-agent-requests/:ptcCode/confirm', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-//  POST /admin/api/booth-agent-requests/:ptcCode/reject
+//  POST /admin/api/booth-agent-requests/:wtlCode/reject
 // ────────────────────────────────────────────────────────────────
-router.post('/api/booth-agent-requests/:ptcCode/reject', async (req, res) => {
+router.post('/api/booth-agent-requests/:wtlCode/reject', async (req, res) => {
   try {
     const db = getDb();
     const r  = await db.collection('booth_agent_requests').updateOne(
-      { ptc_code: req.params.ptcCode, status: 'pending' },
+      { wtl_code: req.params.wtlCode, status: 'pending' },
       { $set: { status: 'rejected', reviewed_at: new Date(), reviewed_by: config.admin.username } }
     );
     return res.json({ success: Boolean(r.modifiedCount) });
@@ -544,7 +544,7 @@ router.get('/api/confirmed-booth-agents', async (req, res) => {
     const { search, page, perPage } = buildListParams(req);
     const filt = { status: 'confirmed' };
     if (search) {
-      filt.$or = [{ name: { $regex: search, $options: 'i' } }, { ptc_code: { $regex: search, $options: 'i' } }];
+      filt.$or = [{ name: { $regex: search, $options: 'i' } }, { wtl_code: { $regex: search, $options: 'i' } }];
     }
     const db = getDb();
     const { items, total, totalPages } = await paginatedList(db, 'booth_agent_requests', filt, { reviewed_at: -1 }, page, perPage);
@@ -603,7 +603,7 @@ function docToVoter(doc) {
 function genDocToDict(doc) {
   if (!doc) return null;
   const base = docToVoter(doc) || {};
-  base.ptc_code               = doc.ptc_code || '';
+  base.wtl_code               = doc.wtl_code || '';
   base.photo_url              = doc.photo_url || '';
   base.card_url               = doc.card_url  || '';
   base.back_url               = doc.back_url  || '';
@@ -611,7 +611,7 @@ function genDocToDict(doc) {
   base.secret_pin             = doc.secret_pin   ? '[set]' : '';
   base.referral_id            = doc.referral_id  || '';
   base.referral_link          = doc.referral_link || '';
-  base.referred_by_ptc        = doc.referred_by_ptc || '';
+  base.referred_by_wtl        = doc.referred_by_wtl || '';
   base.referred_members_count = doc.referred_members_count || 0;
   base.source                 = doc.source       || '';
   base.generated_at           = doc.generated_at ? String(doc.generated_at).slice(0, 19).replace('T', ' ') : '';
@@ -648,7 +648,7 @@ function buildListParams(req) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     filt.$or = [
       { name:     { $regex: escaped, $options: 'i' } },
-      { ptc_code: { $regex: escaped, $options: 'i' } },
+      { wtl_code: { $regex: escaped, $options: 'i' } },
       { epic_no:  { $regex: escaped, $options: 'i' } },
       { mobile:   { $regex: escaped, $options: 'i' } },
     ];

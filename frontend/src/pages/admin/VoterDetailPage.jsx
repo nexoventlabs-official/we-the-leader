@@ -86,21 +86,24 @@ export default function VoterDetailPage() {
           ) : (
             <div className="admin-table-wrap">
               <table className="admin-table">
-                <thead><tr><th>#</th><th>Generated At</th><th>Mobile</th><th>PTC Code</th></tr></thead>
+                <thead><tr><th>#</th><th>Generated At</th><th>Mobile</th><th>WTL Code</th></tr></thead>
                 <tbody>
-                  {generations.map((g, i) => (
-                    <tr key={i}>
-                      <td style={{ color: '#8696a0' }}>{i + 1}</td>
-                      <td>{g.generated_at ? new Date(g.generated_at).toLocaleString() : '—'}</td>
-                      <td style={{ color: '#8696a0' }}>{g.mobile || '—'}</td>
-                      <td>
-                        {g.ptc_code
-                          ? <Link to={`/admin/generated-voters/${g.ptc_code}`} style={{ color: '#43a047', fontWeight: 600, fontSize: 12 }}>{g.ptc_code}</Link>
-                          : '—'
-                        }
-                      </td>
-                    </tr>
-                  ))}
+                  {generations.map((g, i) => {
+                    const codeVal = g.wtl_code || g.ptc_code
+                    return (
+                      <tr key={i}>
+                        <td style={{ color: '#8696a0' }}>{i + 1}</td>
+                        <td>{g.generated_at ? new Date(g.generated_at).toLocaleString() : '—'}</td>
+                        <td style={{ color: '#8696a0' }}>{g.mobile || '—'}</td>
+                        <td>
+                          {codeVal
+                            ? <Link to={`/admin/generated-voters/${codeVal}`} style={{ color: '#43a047', fontWeight: 600, fontSize: 12 }}>{codeVal}</Link>
+                            : '—'
+                          }
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -910,6 +910,51 @@
   background-color: rgba(255, 255, 255, 0.9);
 }
 
+/* Referral action row — copy + WhatsApp share */
+.referral-actions {
+  display: flex;
+  gap: var(--spacing-8);
+  flex-wrap: wrap;
+  padding: 0 var(--spacing-16) var(--spacing-12);
+}
+
+.referral-actions .btn-copy {
+  margin: 0;
+  flex: 1;
+  justify-content: center;
+}
+
+.btn-whatsapp-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  flex: 1;
+  background-color: #25D366;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-buttons);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-whatsapp-share:hover {
+  background-color: #1ebe5d;
+  color: #fff;
+}
+
+.referral-hint {
+  padding: 0 var(--spacing-16) var(--spacing-12);
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-ash);
+  line-height: 1.5;
+}
+
 /* Members Card */
 .members-list {
   list-style: none;
@@ -975,6 +1020,7 @@
   margin: 0;
 }
 
+.profile-details .wtl,
 .profile-details .ptc {
   color: var(--color-signal-mint);
   font-family: monospace;

@@ -99,7 +99,7 @@ async function sendWAImage(imageUrl, caption) {
     assembly_name: doc.ASSEMBLY_NAME || '',
     district:      doc.DISTRICT_NAME || doc.DISTRICT || '',
     mobile:        doc.MOBILE_NO || '',
-    ptc_code:      doc.ptc_code || '',
+    wtl_code:      doc.wtl_code || doc.ptc_code || '',
   };
   const frontBuffer = await generateCard(voterData, photoBuffer);
   console.log(`      ✅ Front card generated (${Math.round(frontBuffer.length / 1024)} KB)`);
@@ -135,7 +135,7 @@ async function sendWAImage(imageUrl, caption) {
     `👤 Name     : ${doc.VOTER_NAME}`,
     `🗳️  EPIC No  : ${epicNo}`,
     `🏛️  Assembly : ${doc.ASSEMBLY_NAME}`,
-    `🔖 PTC Code : ${doc.ptc_code || 'N/A'}`,
+    `🔖 WTL Code : ${doc.wtl_code || doc.ptc_code || 'N/A'}`,
     '',
     'We The Leaders — Lead the Change',
   ].join('\n');
