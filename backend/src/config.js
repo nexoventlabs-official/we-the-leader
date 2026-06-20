@@ -61,7 +61,7 @@ const config = {
   },
 
   baseUrl:       process.env.BASE_URL       || 'http://localhost:5000',
-  frontendUrl:   process.env.FRONTEND_URL   || '',
+  frontendUrl:   process.env.FRONTEND_URL   || 'https://we-the-leader.vercel.app',
   // Comma-separated list of extra allowed CORS origins e.g. preview deploy URLs
   extraOrigins:  process.env.EXTRA_ORIGINS
     ? process.env.EXTRA_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
