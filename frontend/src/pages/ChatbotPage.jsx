@@ -643,16 +643,7 @@ export default function ChatbotPage() {
       }
       case 'my_members': {
         if (!wtlCode) { await botSay('ℹ️ Members list unavailable.', 200); return }
-        setIsTyping(true)
-        try {
-          const res = await chat.getMyMembers(wtlCode)
-          setIsTyping(false)
-          const members = res.members || res.data || (Array.isArray(res) ? res : [])
-          addMsg('bot', 'members_list', { members })
-        } catch {
-          setIsTyping(false)
-          await botSay('❌ Unable to load members.', 200)
-        }
+        navigate(`/my-members/${wtlCode}`)
         break
       }
       case 'volunteer': {
